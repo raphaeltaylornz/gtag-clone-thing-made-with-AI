@@ -2,742 +2,882 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport"
-      content="width=device-width, initial-scale=1.0">
 
-<title>Quest WebXR Controller Test</title>
+<meta name="viewport"
+      content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+
+<title>Monkey Motion VR</title>
 
 <style>
-html, body {
-    margin: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    background: #111;
-    font-family: Arial, sans-serif;
+
+html,body{
+    margin:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:#111722;
+    font-family:Arial,sans-serif;
 }
 
-canvas {
-    display: block;
+canvas{
+    display:block;
 }
 
-#menu {
-    position: fixed;
-    inset: 0;
-    z-index: 10;
+#menu{
+    position:fixed;
+    inset:0;
+    z-index:10;
 
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display:flex;
+    align-items:center;
+    justify-content:center;
 }
 
-#panel {
-    width: min(500px, 90vw);
-    padding: 25px;
+#panel{
+    width:min(520px,90vw);
+    padding:25px;
 
-    background: #181818;
-    color: white;
+    background:rgba(10,15,25,.94);
 
-    border: 2px solid #58e7ff;
-    border-radius: 20px;
+    border:2px solid #58e7ff;
+    border-radius:20px;
 
-    text-align: center;
+    color:white;
+    text-align:center;
+
+    box-shadow:0 0 35px rgba(88,231,255,.25);
 }
 
-button {
-    padding: 16px 25px;
-    border: 0;
-    border-radius: 12px;
-
-    background: #58e7ff;
-    color: #071019;
-
-    font-size: 18px;
-    font-weight: bold;
+#panel h1{
+    margin-top:0;
+    font-size:34px;
 }
 
-#debug {
-    position: fixed;
-    top: 10px;
-    left: 10px;
+button{
+    border:0;
+    border-radius:12px;
 
-    z-index: 20;
+    padding:14px 20px;
+    margin:6px;
 
-    padding: 12px;
-
-    color: white;
-    background: rgba(0,0,0,.75);
-
-    border-radius: 10px;
-
-    font-family: monospace;
-    font-size: 13px;
-
-    white-space: pre-line;
-
-    pointer-events: none;
+    font-size:17px;
+    font-weight:bold;
 }
+
+#startVR{
+    background:#58e7ff;
+}
+
+#parkourBtn{
+    background:#67f38f;
+}
+
+#tagBtn{
+    background:#ffbd5c;
+}
+
+#status{
+    position:fixed;
+    left:12px;
+    top:12px;
+
+    z-index:5;
+
+    color:white;
+    background:rgba(0,0,0,.55);
+
+    padding:9px 12px;
+
+    border-radius:10px;
+
+    font-size:14px;
+}
+
+#debug{
+    position:fixed;
+    right:12px;
+    top:12px;
+
+    z-index:5;
+
+    color:white;
+    background:rgba(0,0,0,.55);
+
+    padding:8px 10px;
+
+    border-radius:8px;
+
+    font-family:monospace;
+    font-size:11px;
+
+    pointer-events:none;
+}
+
 </style>
 </head>
 
 <body>
 
+
+<!-- =====================================================
+     MENU
+===================================================== -->
+
 <div id="menu">
+
     <div id="panel">
 
-        <h1>🎮 Quest Controller Test</h1>
+        <h1>🐒 Monkey Motion VR</h1>
 
         <p>
-            This test checks whether Meta Quest Browser
-            is giving the webpage your controller positions.
+            Push off surfaces with your hands
+            to move like a monkey.
         </p>
 
-        <button id="start">
+        <button id="startVR">
             START VR
         </button>
 
-        <p style="opacity:.6;font-size:13px">
-            You should see a red left controller
-            and blue right controller.
+        <button id="parkourBtn">
+            PARKOUR
+        </button>
+
+        <button id="tagBtn">
+            ROBOT TAG
+        </button>
+
+        <p style="font-size:13px;opacity:.65">
+            Designed for Meta Quest Browser.
         </p>
 
     </div>
+
 </div>
 
+
+<div id="status">
+    Waiting for VR...
+</div>
+
+
 <div id="debug">
-Waiting for VR...
+    LEFT: --
+    RIGHT: --
 </div>
 
 
 <script type="module">
+
 
 import * as THREE from
 "https://cdn.jsdelivr.net/npm/three@0.181.2/build/three.module.js";
 
 
 /* =====================================================
-   VARIABLES
+   GLOBALS
 ===================================================== */
 
 let scene;
+
 let camera;
+
 let renderer;
 
-let controllers = [];
-let grips = [];
+let player;
 
-let controllerMeshes = [];
+let gameStarted=false;
 
-let debug =
-    document.getElementById("debug");
-
-let started = false;
+let mode="parkour";
 
 
 /* =====================================================
-   SCENE
+   VR
 ===================================================== */
 
-function init() {
+const controllers=[
+    null,
+    null
+];
 
-    if (started)
-        return;
+const grips=[
+    null,
+    null
+];
 
-    started = true;
-
-
-    scene =
-        new THREE.Scene();
-
-
-    scene.background =
-        new THREE.Color(
-            0x202530
-        );
+const hands=[
+    null,
+    null
+];
 
 
-    camera =
-        new THREE.PerspectiveCamera(
-            70,
+/* =====================================================
+   HAND TRACKING
+===================================================== */
 
-            window.innerWidth /
-            window.innerHeight,
+const handPositions=[
+    new THREE.Vector3(),
+    new THREE.Vector3()
+];
 
-            0.01,
-            100
-        );
+const previousHands=[
+    new THREE.Vector3(),
+    new THREE.Vector3()
+];
+
+const handDelta=[
+    new THREE.Vector3(),
+    new THREE.Vector3()
+];
+
+const handInitialized=[
+    false,
+    false
+];
 
 
-    camera.position.set(
+/* =====================================================
+   PLAYER
+===================================================== */
+
+const velocity=
+    new THREE.Vector3();
+
+const spawnPoint=
+    new THREE.Vector3(
         0,
         1.6,
-        0
+        6
     );
 
 
-    renderer =
-        new THREE.WebGLRenderer({
-            antialias: true
-        });
+/* =====================================================
+   WORLD
+===================================================== */
+
+const colliders=[];
+
+let robots=[];
 
 
-    renderer.setPixelRatio(
-        Math.min(
-            window.devicePixelRatio,
-            1.5
-        )
-    );
+/* =====================================================
+   SETTINGS
+===================================================== */
+
+const HAND_RADIUS=.16;
+
+const PLAYER_RADIUS=.35;
+
+const MAX_SPEED=7;
+
+const GRAVITY=-10;
+
+const PUSH_STRENGTH=7;
 
 
-    renderer.setSize(
-        window.innerWidth,
-        window.innerHeight
-    );
+/* =====================================================
+   UI
+===================================================== */
+
+const menu=
+    document.getElementById("menu");
+
+const status=
+    document.getElementById("status");
+
+const debug=
+    document.getElementById("debug");
 
 
-    renderer.xr.enabled =
-        true;
+/* =====================================================
+   MATERIAL
+===================================================== */
 
+function mat(color){
 
-    renderer.xr.setReferenceSpaceType(
-        "local-floor"
-    );
+    return new THREE.MeshStandardMaterial({
+        color:color,
+        roughness:.8,
+        metalness:.05
+    });
 
-
-    document.body.appendChild(
-        renderer.domElement
-    );
-
-
-    /* LIGHT */
-
-    const light =
-        new THREE.HemisphereLight(
-            0xffffff,
-            0x333333,
-            2
-        );
-
-    scene.add(light);
-
-
-    /* FLOOR */
-
-    const floor =
-        new THREE.Mesh(
-
-            new THREE.PlaneGeometry(
-                20,
-                20
-            ),
-
-            new THREE.MeshStandardMaterial({
-                color: 0x444444
-            })
-        );
-
-
-    floor.rotation.x =
-        -Math.PI / 2;
-
-
-    scene.add(floor);
-
-
-    /* BIG REFERENCE GRID */
-
-    const grid =
-        new THREE.GridHelper(
-            20,
-            20
-        );
-
-    scene.add(grid);
-
-
-    setupControllers();
-
-
-    renderer.setAnimationLoop(
-        render
-    );
 }
 
 
 /* =====================================================
-   CONTROLLERS
+   CUBE
 ===================================================== */
 
-function setupControllers() {
+function cube(
+    position,
+    size,
+    color,
+    collide=true
+){
 
-    for (
-        let i = 0;
-        i < 2;
-        i++
-    ) {
+    const mesh=
+        new THREE.Mesh(
 
-        /*
-         * Controller target/input object
-         */
+            new THREE.BoxGeometry(
+                size.x,
+                size.y,
+                size.z
+            ),
 
-        const controller =
-            renderer.xr.getController(i);
+            mat(color)
 
-
-        controllers[i] =
-            controller;
-
-
-        scene.add(
-            controller
         );
 
 
-        /*
-         * Controller grip object.
-         *
-         * THIS IS THE IMPORTANT ONE.
-         */
-
-        const grip =
-            renderer.xr.getControllerGrip(i);
+    mesh.position.copy(
+        position
+    );
 
 
-        grips[i] =
-            grip;
+    scene.add(
+        mesh
+    );
 
 
-        scene.add(
-            grip
-        );
+    if(collide){
 
-
-        /*
-         * Create visible sphere.
-         */
-
-        const geometry =
-            new THREE.SphereGeometry(
-                0.12,
-                16,
-                16
-            );
-
-
-        const material =
-            new THREE.MeshBasicMaterial({
-                color:
-                    i === 0
-                        ? 0xff2222
-                        : 0x2266ff
-            });
-
-
-        const mesh =
-            new THREE.Mesh(
-                geometry,
-                material
-            );
-
-
-        controllerMeshes[i] =
-            mesh;
-
-
-        grip.add(
+        colliders.push(
             mesh
         );
 
-
-        /*
-         * Connected
-         */
-
-        controller.addEventListener(
-            "connected",
-            event => {
-
-                controller.userData.source =
-                    event.data;
-
-
-                console.log(
-                    "CONNECTED",
-                    i,
-                    event.data
-                );
-            }
-        );
-
-
-        /*
-         * Disconnected
-         */
-
-        controller.addEventListener(
-            "disconnected",
-            () => {
-
-                controller.userData.source =
-                    null;
-
-
-                console.log(
-                    "DISCONNECTED",
-                    i
-                );
-            }
-        );
     }
+
+
+    return mesh;
 }
 
 
 /* =====================================================
-   DEBUG
+   CLEAR WORLD
 ===================================================== */
 
-function updateDebug() {
+function clearWorld(){
 
-    let text =
-        "WEBXR CONTROLLER TEST\n\n";
+    while(scene.children.length){
 
+        scene.remove(
+            scene.children[0]
+        );
 
-    text +=
-        "VR: " +
-        (
-            renderer.xr.isPresenting
-                ? "YES"
-                : "NO"
-        ) +
-        "\n\n";
-
-
-    for (
-        let i = 0;
-        i < 2;
-        i++
-    ) {
-
-        const controller =
-            controllers[i];
-
-
-        const grip =
-            grips[i];
-
-
-        const side =
-            i === 0
-                ? "LEFT"
-                : "RIGHT";
-
-
-        text +=
-            "========== " +
-            side +
-            " ==========\n";
-
-
-        /*
-         * Controller position
-         */
-
-        if (controller) {
-
-            const p =
-                new THREE.Vector3();
-
-
-            controller.getWorldPosition(
-                p
-            );
-
-
-            text +=
-                "controller pos: " +
-                p.x.toFixed(2) +
-                ", " +
-                p.y.toFixed(2) +
-                ", " +
-                p.z.toFixed(2) +
-                "\n";
-        }
-
-
-        /*
-         * Grip position
-         */
-
-        if (grip) {
-
-            const p =
-                new THREE.Vector3();
-
-
-            grip.getWorldPosition(
-                p
-            );
-
-
-            text +=
-                "grip pos:       " +
-                p.x.toFixed(2) +
-                ", " +
-                p.y.toFixed(2) +
-                ", " +
-                p.z.toFixed(2) +
-                "\n";
-        }
-
-
-        /*
-         * Input source
-         */
-
-        const source =
-            controller?.userData?.source;
-
-
-        if (source) {
-
-            text +=
-                "handedness: " +
-                source.handedness +
-                "\n";
-
-
-            text +=
-                "targetRay: " +
-                source.targetRayMode +
-                "\n";
-
-
-            if (source.gamepad) {
-
-                const gp =
-                    source.gamepad;
-
-
-                text +=
-                    "axes: " +
-                    gp.axes
-                        .map(
-                            x =>
-                                x.toFixed(2)
-                        )
-                        .join(", ") +
-                    "\n";
-
-
-                text +=
-                    "buttons: " +
-                    gp.buttons
-                        .map(
-                            b =>
-                                b.pressed
-                                    ? "●"
-                                    : "○"
-                        )
-                        .join(" ") +
-                    "\n";
-
-
-                text +=
-                    "values: " +
-                    gp.buttons
-                        .map(
-                            b =>
-                                b.value
-                                    .toFixed(2)
-                        )
-                        .join(", ") +
-                    "\n";
-
-            } else {
-
-                text +=
-                    "GAMEPAD: NONE\n";
-            }
-
-        } else {
-
-            text +=
-                "INPUT SOURCE: NONE\n";
-        }
-
-
-        text += "\n";
     }
 
 
-    debug.textContent =
-        text;
-}
+    colliders.length=0;
+
+    robots=[];
 
 
-/* =====================================================
-   RENDER
-===================================================== */
-
-function render() {
-
-    updateDebug();
+    scene.background=
+        new THREE.Color(
+            0x172134
+        );
 
 
-    renderer.render(
-        scene,
-        camera
+    const hemi=
+        new THREE.HemisphereLight(
+            0xffffff,
+            0x283143,
+            1.7
+        );
+
+
+    scene.add(
+        hemi
     );
+
+
+    const sun=
+        new THREE.DirectionalLight(
+            0xffffff,
+            2
+        );
+
+
+    sun.position.set(
+        5,
+        10,
+        5
+    );
+
+
+    scene.add(
+        sun
+    );
+
+
+    cube(
+        new THREE.Vector3(
+            0,
+            -.25,
+            0
+        ),
+
+        new THREE.Vector3(
+            40,
+            .5,
+            40
+        ),
+
+        0x344154
+    );
+
 }
 
 
 /* =====================================================
-   START VR
+   PARKOUR
 ===================================================== */
 
-document.getElementById(
-    "start"
-).onclick =
-async () => {
+function buildParkour(){
 
-    init();
+    clearWorld();
 
 
-    if (!navigator.xr) {
+    status.textContent=
+        "PARKOUR — push yourself through the course";
 
-        alert(
-            "navigator.xr is NOT available."
+
+    spawnPoint.set(
+        0,
+        1.6,
+        6
+    );
+
+
+    cube(
+        new THREE.Vector3(
+            0,
+            0,
+            5
+        ),
+
+        new THREE.Vector3(
+            7,
+            .5,
+            7
+        ),
+
+        0x4c91ff
+    );
+
+
+    const platforms=[
+
+        [0,1,-0,4,.5,4],
+
+        [3,1.7,-4,3.5,.5,3.5],
+
+        [-2.5,2.5,-8,3.5,.5,3.5],
+
+        [2.5,3.3,-12,3.5,.5,3.5],
+
+        [-2,4.1,-16,3.5,.5,3.5],
+
+        [2,4.9,-20,3.5,.5,3.5],
+
+        [0,5.8,-25,5,.5,5]
+
+    ];
+
+
+    for(
+        const p of platforms
+    ){
+
+        cube(
+
+            new THREE.Vector3(
+                p[0],
+                p[1],
+                p[2]
+            ),
+
+            new THREE.Vector3(
+                p[3],
+                p[4],
+                p[5]
+            ),
+
+            0x438df2
+
         );
 
-        return;
     }
 
 
-    try {
+    /* WALLS */
 
-        const supported =
-            await navigator.xr.isSessionSupported(
-                "immersive-vr"
-            );
+    for(let i=0;i<6;i++){
 
+        cube(
 
-        if (!supported) {
+            new THREE.Vector3(
+                -5,
+                1.5+i*.75,
+                -3-i*3.5
+            ),
 
-            alert(
-                "immersive-vr is NOT supported."
-            );
+            new THREE.Vector3(
+                1.2,
+                3,
+                1.2
+            ),
 
-            return;
-        }
+            0x7b85ff
 
-
-        const session =
-            await navigator.xr.requestSession(
-                "immersive-vr",
-                {
-                    requiredFeatures: [
-                        "local-floor"
-                    ],
-
-                    optionalFeatures: [
-                        "bounded-floor"
-                    ]
-                }
-            );
-
-
-        await renderer.xr.setSession(
-            session
         );
 
 
-        document.getElementById(
-            "menu"
-        ).style.display =
-            "none";
+        cube(
 
+            new THREE.Vector3(
+                5,
+                1.5+i*.75,
+                -5-i*3.5
+            ),
 
-    } catch (error) {
+            new THREE.Vector3(
+                1.2,
+                3,
+                1.2
+            ),
 
-        console.error(error);
+            0x7b85ff
 
-
-        alert(
-            "VR ERROR:\n" +
-            error.message
         );
+
     }
-};
+
+
+    /* BARS */
+
+    for(let i=0;i<5;i++){
+
+        cube(
+
+            new THREE.Vector3(
+                0,
+                2.5+i*.75,
+                -2-i*4
+            ),
+
+            new THREE.Vector3(
+                5,
+                .22,
+                .22
+            ),
+
+            0xffd45c
+
+        );
+
+    }
+
+
+    /* FINISH */
+
+    cube(
+
+        new THREE.Vector3(
+            0,
+            6.1,
+            -25
+        ),
+
+        new THREE.Vector3(
+            3.5,
+            .15,
+            3.5
+        ),
+
+        0xff5e91
+
+    );
+
+}
 
 
 /* =====================================================
-   RESIZE
+   ROBOT
 ===================================================== */
 
-window.addEventListener(
-    "resize",
-    () => {
+function createRobot(position){
 
-        if (
-            !camera ||
-            !renderer
-        )
-            return;
+    const robot=
+        new THREE.Group();
 
 
-        camera.aspect =
-            window.innerWidth /
-            window.innerHeight;
+    const body=
+        new THREE.Mesh(
 
+            new THREE.BoxGeometry(
+                .8,
+                1,
+                .6
+            ),
 
-        camera.updateProjectionMatrix();
+            mat(0xd94c5c)
 
-
-        renderer.setSize(
-            window.innerWidth,
-            window.innerHeight
         );
+
+
+    body.position.y=.55;
+
+    robot.add(
+        body
+    );
+
+
+    const head=
+        new THREE.Mesh(
+
+            new THREE.BoxGeometry(
+                .7,
+                .55,
+                .62
+            ),
+
+            mat(0xa83243)
+
+        );
+
+
+    head.position.y=1.35;
+
+    robot.add(
+        head
+    );
+
+
+    const eyeMat=
+        mat(0x65fff5);
+
+
+    const eye1=
+        new THREE.Mesh(
+
+            new THREE.SphereGeometry(
+                .07,
+                12,
+                8
+            ),
+
+            eyeMat
+
+        );
+
+
+    const eye2=
+        eye1.clone();
+
+
+    eye1.position.set(
+        -.17,
+        1.37,
+        -.32
+    );
+
+
+    eye2.position.set(
+        .17,
+        1.37,
+        -.32
+    );
+
+
+    robot.add(
+        eye1,
+        eye2
+    );
+
+
+    robot.position.copy(
+        position
+    );
+
+
+    scene.add(
+        robot
+    );
+
+
+    return robot;
+}
+
+
+/* =====================================================
+   ROBOT TAG
+===================================================== */
+
+function buildRobotTag(){
+
+    clearWorld();
+
+
+    status.textContent=
+        "ROBOT TAG — don't get tagged!";
+
+
+    spawnPoint.set(
+        0,
+        1.6,
+        10
+    );
+
+
+    cube(
+
+        new THREE.Vector3(
+            0,
+            0,
+            0
+        ),
+
+        new THREE.Vector3(
+            34,
+            .5,
+            34
+        ),
+
+        0x26384a
+
+    );
+
+
+    /* ARENA WALLS */
+
+    cube(
+        new THREE.Vector3(
+            0,3,-17
+        ),
+        new THREE.Vector3(
+            34,6,.5
+        ),
+        0x53657a
+    );
+
+
+    cube(
+        new THREE.Vector3(
+            0,3,17
+        ),
+        new THREE.Vector3(
+            34,6,.5
+        ),
+        0x53657a
+    );
+
+
+    cube(
+        new THREE.Vector3(
+            -17,3,0
+        ),
+        new THREE.Vector3(
+            .5,6,34
+        ),
+        0x53657a
+    );
+
+
+    cube(
+        new THREE.Vector3(
+            17,3,0
+        ),
+        new THREE.Vector3(
+            .5,6,34
+        ),
+        0x53657a
+    );
+
+
+    /* OBSTACLES */
+
+    for(
+        let i=0;
+        i<18;
+        i++
+    ){
+
+        const angle=
+            i*Math.PI*2/18;
+
+
+        const radius=
+            7+(i%3)*2;
+
+
+        cube(
+
+            new THREE.Vector3(
+
+                Math.cos(angle)*radius,
+
+                1,
+
+                Math.sin(angle)*radius
+
+            ),
+
+            new THREE.Vector3(
+                2,
+                2+(i%3),
+                2
+            ),
+
+            i%2
+                ? 0x3978b7
+                : 0x4d9c73
+
+        );
+
     }
-);
 
-</script>
 
-</body>
-</html>
-```
+    robots.push(
+        createRobot(
+            new THREE.Vector3(
+                -8,.7,-8
+            )
+        )
+    );
 
-### What I need you to look for
 
-Once you're inside VR, **don't worry about movement yet**.
+    robots.push(
+        createRobot(
+            new THREE.Vector3(
+                8,.7,-8
+            )
+        )
+    );
 
-You should see:
 
-* 🔴 **Red sphere = left controller**
-* 🔵 **Blue sphere = right controller**
-* A debug panel with `LEFT` and `RIGHT`
+    robots.push(
+        createRobot(
+            new THREE.Vector3(
+                0,.7,-12
+            )
+        )
+    );
 
-Then move your controllers around.
 
-The important lines are:
+    robots.push(
+        createRobot(
+            new THREE.Vector3(
+                10,.7,5
+            )
+        )
+    );
 
-```text
-controller pos:
-grip pos:
-handedness:
-axes:
-buttons:
-```
+}
 
-If the numbers under **`grip pos` change when you move your controllers**, we're good — I can use that to build the actual GTAG locomotion.
 
-If they stay at:
+/* =====================================================
+   CREATE HAND
+===================================================== */
 
-```text
-0.00, 0.00, 0.00
-```
-
-or say:
-
-```text
-INPUT SOURCE: NONE
+function createH
 ```
