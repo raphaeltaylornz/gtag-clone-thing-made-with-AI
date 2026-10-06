@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Monkey Motion VR</title>
+
+<style>
+    html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #111722;
+        font-family: Arial, sans-serif;
+    }
+
+    canvas {
+        display: block;
+    }
+
+    #menu {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        pointer-events: none;
+    }
+
+    #panel {
+        pointer-events: auto;
+        width: min(520px, 90vw);
+        padding: 25px;
+        border-radius: 20px;
+        background: rgba(10, 15, 25, 0.92);
+        border: 2px solid #58e7ff;
+        box-shadow: 0 0 35px rgba(88,231,255,.25);
+        text-align: center;
+        color: white;
+    }
+
+    #panel h1 {
+        margin-top: 0;
+        font-size: 34px;
+    }
+
+    button {
+        border: 0;
+        border-radius: 12px;
+        padding: 14px 20px;
+        margin: 6px;
+        font-size: 17px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+
+    #startVR {
+        background: #58e7ff;
+        color: #071019;
+    }
+
+    #parkourBtn {
+        background: #67f38f;
+        color: #071019;
+    }
+
+    #tagBtn {
+        background: #ffbd5c;
+        color: #20170a;
+    }
+
+    #status {
+        position: fixed;
+        left: 12px;
+        top: 12px;
+        z-index: 5;
+        color: white;
+        background: rgba(0,0,0,.45);
+        padding: 9px 12px;
+        border-radius: 10px;
+        font-size: 14px;
+    }
+
+    #help {
+        position: fixed;
+        right: 12px;
+        bottom: 12px;
+        z-index: 5;
+        color: white;
+        background: rgba(0,0,0,.45);
+        padding: 10px 12px;
+        border-radius: 10px;
+        font-size: 13px;
+        max-width: 340px;
+    }
+</style>
+</head>
+
+<body>
+
+<div id="menu">
+    <div id="panel">
+        <h1>🐒 Monkey Motion VR</h1>
+
+        <p>
+            GTAG-style arm movement, parkour and robot tag.
+        </p>
+
+        <button id="startVR">START VR</button>
+        <button id="parkourBtn">PARKOUR</button>
+        <button id="tagBtn">ROBOT TAG</button>
+
+        <p style="font-size:13px;opacity:.7">
+            Best used in Meta Quest Browser.
+        </p>
+    </div>
+</div>
+
+<div id="status">
+    Mode: PARKOUR
+</div>
+
+<div id="help">
+    VR: swing your arms to move.<br>
+    Thumbstick: turn.<br>
+    Controller button: reset.<br>
+    Desktop: WASD + mouse.
+</div>
+
+<script type="module">
+
+import * as THREE from
+"https://cdn.jsdelivr.net/npm/three@0.181.2/build/three.module.js";
+
+let renderer;
+let scene;
+let camera;
+let player;
+
+let mode = "parkour";
+
+let playerVelocity = new THREE.Vector3();
+let lastTime = performance.now();
+
+let controllers = [null, null];
+
+let previousHands = [
+    new THREE.Vector3(),
+    new THREE.Vector3()
+];
+
+let handPositions = [
+    new THREE.Vector3(),
+    new THREE.Vector3()
+];
+
+let handInitialized = [
+    false,
+    false
+];
+
+let robots = [];
+
+let spawnPoint = new THREE.Vector3(0, 1.6, 6);
+
+let gameStarted = false;
+
+const keys = {};
+
+const status = document.getElementById("status");
+const menu = document.getElementById("menu");
+
+/* ---------------------------------------------------------
+   MATERIALS
+--------------------------------------------------------- */
+
+function material(color) {
+    return new THREE.MeshStandardMaterial({
+        color: color,
+        roughness: .8,
+        metalness: .05
+    });
+}
+
+/* ---------------------------------------------------------
+   OBJECT CREATION
+--------------------------------------------------------- */
+
+function cube(position, size, color) {
+
+    const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(
+            size.x,
+            size.y,
+            size.z
+        ),
+        material(color)
+    );
+
+    mesh.position.copy(position);
+
+    scene.add(mesh);
+
+    return mesh;
+}
+
+function makeRobot(position) {
+
+    const robot = new THREE.Group();
+
+    const body = new THREE.Mesh(
+        new THREE.BoxGeometry(.8, 1.0, .6),
+        material(0xd94c5c)
+    );
+
+    body.position.y = .55;
+
+    robot.add(body);
+
+    const head = new THREE.Mesh(
+        new THREE.BoxGeometry(.7, .55, .62),
+        material(0xa83243)
+    );
+
+    head.position.y = 1.35;
+
+    robot.add(head);
+
+    const eyeMaterial = material(0x65fff5);
+
+    const eye1 = new THREE.Mesh(
+        new THREE.SphereGeometry(.065, 12, 8),
+        eyeMaterial
+    );
+
+    const eye2 = eye1.clone();
+
+    eye1.position.set(-.17, 1.37, -.32);
+    eye2.position.set(.17, 1.37, -.32);
+
+    robot.add(eye1);
+    robot.add(eye2);
+
+    robot.position.copy(position);
+
+    scene.add(robot);
+
+    return robot;
+}
+
+/* ---------------------------------------------------------
+   WORLD RESET
+--------------------------------------------------------- */
+
+function clearWorld() {
+
+    while (scene.children.length > 0) {
+        scene.remove(scene.children[0]);
+    }
+
+    robots = [];
+
+    const sky = new THREE.Color(0x172134);
+
+    scene.background = sky;
+
+    const light = new THREE.HemisphereLight(
+        0xffffff,
+        0x283143,
+        1.7
+    );
+
+    scene.add(light);
+
+    const sun = new THREE.DirectionalLight(
+        0xffffff,
+        2
+    );
+
+    sun.position.set(5, 10, 5);
+
+    scene.add(sun);
+
+    const floor = cube(
+        new THREE.Vector3(0, -0.2, 0),
+        new THREE.Vector3(40, .4, 40),
+        0x344154
+    );
+
+    floor.name = "floor";
+}
+
+/* ---------------------------------------------------------
+   PARKOUR
+--------------------------------------------------------- */
+
+function buildParkour() {
+
+    clearWorld();
+
+    status.textContent =
+        "Mode: PARKOUR — reach the pink finish!";
+
+    spawnPoint.set(
+        0,
+        1.6,
+        6
+    );
+
+    // Starting platform
+    cube(
+        new THREE.Vector3(0, 0, 5),
+        new THREE.Vector3(7, .5, 7),
+        0x4c91ff
+    );
+
+    // Main parkour route
+    const platforms = [
+
+        [0, 1.0, 0, 4, .5, 4],
+
+        [3, 1.7, -4, 3.5, .5, 3.5],
+
+        [-2.5, 2.5, -8, 3.5, .5, 3.5],
+
+        [2.5, 3.3, -12, 3.5, .5, 3.5],
+
+        [-2, 4.1, -16, 3.5, .5, 3.5],
+
+        [2, 4.9, -20, 3.5, .5, 3.5],
+
+        [0, 5.8, -25, 5, .5, 5]
+    ];
+
+    for (const p of platforms) {
+
+        cube(
+            new THREE.Vector3(p[0], p[1], p[2]),
+            new THREE.Vector3(p[3], p[4], p[5]),
+            0x438df2
+        );
+    }
+
+    // Tall wall-jump pillars
+    for (let i = 0; i < 6; i++) {
+
+        cube(
+            new THREE.Vector3(
+                -5,
+                1.5 + i * .75,
+                -3 - i * 3.5
+            ),
+            new THREE.Vector3(
+                1.2,
+                3,
+                1.2
+            ),
+            0x7b85ff
+        );
+
+        cube(
+            new THREE.Vector3(
+                5,
+                1.5 + i * .75,
+                -5 - i * 3.5
+            ),
+            new THREE.Vector3(
+                1.2,
+                3,
+                1.2
+            ),
+            0x7b85ff
+        );
+    }
+
+    // Hanging bars
+    for (let i = 0; i < 5; i++) {
+
+        cube(
+            new THREE.Vector3(
+                0,
+                2.5 + i * .75,
+                -2 - i * 4
+            ),
+            new THREE.Vector3(
+                5,
+                .22,
+                .22
+            ),
+            0xffd45c
+        );
+    }
+
+    // Checkpoints
+    for (let i = 0; i < 4; i++) {
+
+        cube(
+            new THREE.Vector3(
+                0,
+                .15 + i * 1.4,
+                -5 - i * 5
+            ),
+            new THREE.Vector3(
+                2,
+                .12,
+                2
+            ),
+            0x65ef8d
+        );
+    }
+
+    // Finish
+    cube(
+        new THREE.Vector3(
+            0,
+            6.1,
+            -25
+        ),
+        new THREE.Vector3(
+            3.5,
+            .15,
+            3.5
+        ),
+        0xff5e91
+    );
+}
+
+/* ---------------------------------------------------------
+   ROBOT TAG
+--------------------------------------------------------- */
+
+function buildRobotTag() {
+
+    clearWorld();
+
+    status.textContent =
+        "Mode: ROBOT TAG — don't get tagged!";
+
+    spawnPoint.set(
+        0,
+        1.6,
+        10
+    );
+
+    // Arena
+    cube(
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(34, .5, 34),
+        0x26384a
+    );
+
+    // Walls
+    cube(
+        new THREE.Vector3(0, 3, -17),
+        new THREE.Vector3(34, 6, .5),
+        0x53657a
+    );
+
+    cube(
+        new THREE.Vector3(0, 3, 17),
+        new THREE.Vector3(34, 6, .5),
+        0x53657a
+    );
+
+    cube(
+        new THREE.Vector3(-17, 3, 0),
+        new THREE.Vector3(.5, 6, 34),
+        0x53657a
+    );
+
+    cube(
+        new THREE.Vector3(17, 3, 0),
+        new THREE.Vector3(.5, 6, 34),
+        0x53657a
+    );
+
+    // Obstacles
+    for (let i = 0; i < 18; i++) {
+
+        const angle =
+            i * Math.PI * 2 / 18;
+
+        const radius =
+            7 + (i % 3) * 2;
+
+        cube(
+            new THREE.Vector3(
+                Math.cos(angle) * radius,
+                1,
+                Math.sin(angle) * radius
+            ),
+            new THREE.Vector3(
+                2,
+                2 + (i % 3),
+                2
+            ),
+            i % 2
+                ? 0x3978b7
+                : 0x4d9c73
+        );
+    }
+
+    // Player spawn pad
+    cube(
+        new THREE.Vector3(0, .2, 10),
+        new THREE.Vector3(3, .2, 3),
+        0x64ef8e
+    );
+
+    // Robots
+    robots.push(
+        makeRobot(new THREE.Vector3(-8, .7, -8))
+    );
+
+    robots.push(
+        makeRobot(new THREE.Vector3(8, .7, -8))
+    );
+
+    robots.push(
+        makeRobot(new THREE.Vector3(0, .7, -12))
+    );
+
+    robots.push(
+        makeRobot(new THREE.Vector3(10, .7, 5))
+    );
+}
+
+/* ---------------------------------------------------------
+   VR SETUP
+--------------------------------------------------------- */
+
+function init() {
+
+    if (gameStarted)
+        return;
+
+    gameStarted = true;
+
+    scene = new THREE.Scene();
+
+    camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth /
+        window.innerHeight,
+        .05,
+        1000
+    );
+
+    player = new THREE.Group();
+
+    scene.add(player);
+
+    player.add(camera);
+
+    camera.position.set(
+        0,
+        1.6,
+        0
+    );
+
+    renderer = new THREE.WebGLRenderer({
+        antialias: true
+    });
+
+    renderer.setPixelRatio(
+        Math.min(window.devicePixelRatio, 1.5)
+    );
+
+    renderer.setSize(
+        window.innerWidth,
+        window.innerHeight
+    );
+
+    renderer.xr.enabled = true;
+
+    document.body.appendChild(
+        renderer.domElement
+    );
+
+    setupControllers();
+
+    buildParkour();
+
+    renderer.setAnimationLoop(gameLoop);
+}
+
+/* ---------------------------------------------------------
+   CONTROLLERS
+--------------------------------------------------------- */
+
+function setupControllers() {
+
+    for (let i = 0; i < 2; i++) {
+
+        const controller =
+            renderer.xr.getController(i);
+
+        controllers[i] = controller;
+
+        scene.add(controller);
+
+        const marker =
+            new THREE.Mesh(
+                new THREE.SphereGeometry(
+                    .09,
+                    12,
+                    8
+                ),
+                material(
+                    i === 0
+                        ? 0xff7777
+                        : 0x7777ff
+                )
+            );
+
+        controller.add(marker);
+
+        controller.addEventListener(
+            "connected",
+            e => {
+                controller.userData.inputSource =
+                    e.data;
+            }
+        );
+
+        controller.addEventListener(
+            "disconnected",
+            () => {
+                controller.userData.inputSource = null;
+            }
+        );
+
+        controller.addEventListener(
+            "selectstart",
+            resetPlayer
+        );
+
+        controller.addEventListener(
+            "squeezestart",
+            resetPlayer
+        );
+    }
+}
+
+/* ---------------------------------------------------------
+   RESET
+--------------------------------------------------------- */
+
+function resetPlayer() {
+
+    if (!player)
+        return;
+
+    player.position.set(
+        -spawnPoint.x,
+        0,
+        -spawnPoint.z
+    );
+
+    camera.position.y = spawnPoint.y;
+
+    playerVelocity.set(0, 0, 0);
+
+    for (let i = 0; i < 2; i++) {
+
+        handInitialized[i] = false;
+    }
+}
+
+/* ---------------------------------------------------------
+   MODE SWITCH
+--------------------------------------------------------- */
+
+function switchMode(newMode) {
+
+    mode = newMode;
+
+    if (mode === "parkour") {
+
+        buildParkour();
+
+    } else {
+
+        buildRobotTag();
+    }
+
+    resetPlayer();
+}
+
+/* ---------------------------------------------------------
+   ARM SWING MOVEMENT
+--------------------------------------------------------- */
+
+function updateArmMovement() {
+
+    const movement =
+        new THREE.Vector3();
+
+    let validHands = 0;
+
+    for (let i = 0; i < 2; i++) {
+
+        const controller =
+            controllers[i];
+
+        if (!controller)
+            continue;
+
+        controller.getWorldPosition(
+            handPositions[i]
+        );
+
+        if (!handInitialized[i]) {
+
+            previousHands[i].copy(
+                handPositions[i]
+            );
+
+            handInitialized[i] = true;
+
+            continue;
+        }
+
+        const push =
+            previousHands[i]
+                .clone()
+                .sub(handPositions[i]);
+
+        const amount = push.length();
+
+        /*
+          Only count realistic hand movements.
+        */
+
+        if (
+            amount > .008 &&
+            amount < .35
+        ) {
+
+            movement.add(push);
+
+            validHands++;
+        }
+
+        previousHands[i].copy(
+            handPositions[i]
+        );
+    }
+
+    if (validHands > 0) {
+
+        movement.multiplyScalar(
+            4.0 / validHands
+        );
+
+        playerVelocity.add(
+            movement
+        );
+    }
+
+    // Maximum movement speed
+    if (
+        playerVelocity.length() > 6
+    ) {
+
+        playerVelocity.setLength(6);
+    }
+}
+
+/* ---------------------------------------------------------
+   ROBOT AI
+--------------------------------------------------------- */
+
+function updateRobots(delta) {
+
+    for (const robot of robots) {
+
+        const target =
+            player.position.clone();
+
+        target.y = robot.position.y;
+
+        const direction =
+            target.sub(robot.position);
+
+        const distance =
+            direction.length();
+
+        if (distance < .01)
+            continue;
+
+        direction.normalize();
+
+        let speed = 2;
+
+        if (distance < 8)
+            speed = 3.5;
+
+        if (distance < 4)
+            speed = 4.5;
+
+        robot.position.add(
+            direction.multiplyScalar(
+                speed * delta
+            )
+        );
+
+        robot.lookAt(
+            player.position.x,
+            robot.position.y,
+            player.position.z
+        );
+
+        // Tagged
+        if (
+            robot.position.distanceTo(
+                player.position
+            ) < 1.3
+        ) {
+
+            status.textContent =
+                "🤖 TAGGED! Press a controller button to respawn.";
+
+            playerVelocity.set(
+                0,
+                0,
+                0
+            );
+        }
+    }
+}
+
+/* ---------------------------------------------------------
+   DESKTOP MOVEMENT
+--------------------------------------------------------- */
+
+function desktopMovement(delta) {
+
+    if (!player)
+        return;
+
+    const direction =
+        new THREE.Vector3();
+
+    if (keys["w"])
+        direction.z -= 1;
+
+    if (keys["s"])
+        direction.z += 1;
+
+    if (keys["a"])
+        direction.x -= 1;
+
+    if (keys["d"])
+        direction.x += 1;
+
+    if (
+        direction.lengthSq() > 0
+    ) {
+
+        direction.normalize();
+
+        player.position.add(
+            direction.multiplyScalar(
+                4 * delta
+            )
+        );
+    }
+}
+
+/* ---------------------------------------------------------
+   THUMBSTICK TURN
+--------------------------------------------------------- */
+
+function updateTurning(delta) {
+
+    if (!renderer.xr.isPresenting)
+        return;
+
+    for (const controller of controllers) {
+
+        if (!controller)
+            continue;
+
+        const source =
+            controller.userData.inputSource;
+
+        if (
+            !source ||
+            !source.gamepad
+        )
+            continue;
+
+        const axes =
+            source.gamepad.axes;
+
+        if (!axes)
+            continue;
+
+        let x = 0;
+
+        if (axes.length >= 4)
+            x = axes[2];
+
+        if (Math.abs(x) > .35) {
+
+            player.rotation.y -=
+                x * delta * 1.7;
+        }
+    }
+}
+
+/* ---------------------------------------------------------
+   PLAYER
+--------------------------------------------------------- */
+
+function updatePlayer(delta) {
+
+    updateArmMovement();
+
+    updateTurning(delta);
+
+    // Damp movement
+    playerVelocity.multiplyScalar(
+        Math.pow(.86, delta * 60)
+    );
+
+    player.position.addScaledVector(
+        playerVelocity,
+        delta
+    );
+
+    // Reset if player falls
+    if (
+        player.position.y < -8
+    ) {
+
+        resetPlayer();
+    }
+
+    if (mode === "parkour") {
+
+        // Finish
+        const finishZ = -25;
+
+        if (
+            player.position.z < finishZ + 2
+        ) {
+
+            status.textContent =
+                "🏆 PARKOUR COMPLETE!";
+        }
+    }
+
+    if (mode === "tag") {
+
+        updateRobots(delta);
+    }
+}
+
+/* ---------------------------------------------------------
+   GAME LOOP
+--------------------------------------------------------- */
+
+function gameLoop() {
+
+    const now =
+        performance.now();
+
+    let delta =
+        (now - lastTime) / 1000;
+
+    lastTime = now;
+
+    delta = Math.min(delta, .05);
+
+    updatePlayer(delta);
+
+    desktopMovement(delta);
+
+    renderer.render(
+        scene,
+        camera
+    );
+}
+
+/* ---------------------------------------------------------
+   BUTTONS
+--------------------------------------------------------- */
+
+document.getElementById(
+    "parkourBtn"
+).onclick = () => {
+
+    init();
+
+    switchMode(
+        "parkour"
+    );
+
+    menu.style.display =
+        "none";
+};
+
+document.getElementById(
+    "tagBtn"
+).onclick = () => {
+
+    init();
+
+    switchMode(
+        "tag"
+    );
+
+    menu.style.display =
+        "none";
+};
+
+document.getElementById(
+    "startVR"
+).onclick = async () => {
+
+    init();
+
+    if (
+        !navigator.xr
+    ) {
+
+        alert(
+            "WebXR is not available in this browser. Open the page in Meta Quest Browser."
+        );
+
+        return;
+    }
+
+    try {
+
+        const session =
+            await navigator.xr.requestSession(
+                "immersive-vr",
+                {
+                    optionalFeatures: [
+                        "local-floor",
+                        "bounded-floor"
+                    ]
+                }
+            );
+
+        await renderer.xr.setSession(
+            session
+        );
+
+        menu.style.display =
+            "none";
+
+    } catch (error) {
+
+        console.error(error);
+
+        alert(
+            "VR could not start. Make sure you are using the Meta Quest Browser and the page is hosted over HTTPS."
+        );
+    }
+};
+
+/* ---------------------------------------------------------
+   KEYBOARD
+--------------------------------------------------------- */
+
+window.addEventListener(
+    "keydown",
+    e => {
+
+        keys[
+            e.key.toLowerCase()
+        ] = true;
+
+        if (
+            e.key.toLowerCase() === "1"
+        ) {
+
+            init();
+
+            switchMode(
+                "parkour"
+            );
+        }
+
+        if (
+            e.key.toLowerCase() === "2"
+        ) {
+
+            init();
+
+            switchMode(
+                "tag"
+            );
+        }
+
+        if (
+            e.key.toLowerCase() === "r"
+        ) {
+
+            resetPlayer();
+        }
+    }
+);
+
+window.addEventListener(
+    "keyup",
+    e => {
+
+        keys[
+            e.key.toLowerCase()
+        ] = false;
+    }
+);
+
+/* ---------------------------------------------------------
+   RESIZE
+--------------------------------------------------------- */
+
+window.addEventListener(
+    "resize",
+    () => {
+
+        if (!camera || !renderer)
+            return;
+
+        camera.aspect =
+            window.innerWidth /
+            window.innerHeight;
+
+        camera.updateProjectionMatrix();
+
+        renderer.setSize(
+            window.innerWidth,
+            window.innerHeight
+        );
+    }
+);
+
+</script>
+</body>
+</html>
