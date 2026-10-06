@@ -2,100 +2,102 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport"
+      content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+
 <title>Monkey Motion VR</title>
 
 <style>
-    html, body {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-        background: #111722;
-        font-family: Arial, sans-serif;
-    }
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #111722;
+    font-family: Arial, sans-serif;
+}
 
-    canvas {
-        display: block;
-    }
+canvas {
+    display: block;
+}
 
-    #menu {
-        position: fixed;
-        inset: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 10;
-        pointer-events: none;
-    }
+#menu {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    pointer-events: none;
+}
 
-    #panel {
-        pointer-events: auto;
-        width: min(520px, 90vw);
-        padding: 25px;
-        border-radius: 20px;
-        background: rgba(10, 15, 25, 0.92);
-        border: 2px solid #58e7ff;
-        box-shadow: 0 0 35px rgba(88,231,255,.25);
-        text-align: center;
-        color: white;
-    }
+#panel {
+    pointer-events: auto;
+    width: min(520px, 90vw);
+    padding: 25px;
+    border-radius: 20px;
+    background: rgba(10, 15, 25, 0.92);
+    border: 2px solid #58e7ff;
+    box-shadow: 0 0 35px rgba(88,231,255,.25);
+    text-align: center;
+    color: white;
+}
 
-    #panel h1 {
-        margin-top: 0;
-        font-size: 34px;
-    }
+#panel h1 {
+    margin-top: 0;
+    font-size: 34px;
+}
 
-    button {
-        border: 0;
-        border-radius: 12px;
-        padding: 14px 20px;
-        margin: 6px;
-        font-size: 17px;
-        font-weight: bold;
-        cursor: pointer;
-    }
+button {
+    border: 0;
+    border-radius: 12px;
+    padding: 14px 20px;
+    margin: 6px;
+    font-size: 17px;
+    font-weight: bold;
+    cursor: pointer;
+}
 
-    #startVR {
-        background: #58e7ff;
-        color: #071019;
-    }
+#startVR {
+    background: #58e7ff;
+    color: #071019;
+}
 
-    #parkourBtn {
-        background: #67f38f;
-        color: #071019;
-    }
+#parkourBtn {
+    background: #67f38f;
+    color: #071019;
+}
 
-    #tagBtn {
-        background: #ffbd5c;
-        color: #20170a;
-    }
+#tagBtn {
+    background: #ffbd5c;
+    color: #20170a;
+}
 
-    #status {
-        position: fixed;
-        left: 12px;
-        top: 12px;
-        z-index: 5;
-        color: white;
-        background: rgba(0,0,0,.45);
-        padding: 9px 12px;
-        border-radius: 10px;
-        font-size: 14px;
-    }
+#status {
+    position: fixed;
+    left: 12px;
+    top: 12px;
+    z-index: 5;
+    color: white;
+    background: rgba(0,0,0,.45);
+    padding: 9px 12px;
+    border-radius: 10px;
+    font-size: 14px;
+}
 
-    #help {
-        position: fixed;
-        right: 12px;
-        bottom: 12px;
-        z-index: 5;
-        color: white;
-        background: rgba(0,0,0,.45);
-        padding: 10px 12px;
-        border-radius: 10px;
-        font-size: 13px;
-        max-width: 340px;
-    }
+#help {
+    position: fixed;
+    right: 12px;
+    bottom: 12px;
+    z-index: 5;
+    color: white;
+    background: rgba(0,0,0,.45);
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    max-width: 340px;
+}
 </style>
 </head>
 
@@ -103,6 +105,7 @@
 
 <div id="menu">
     <div id="panel">
+
         <h1>🐒 Monkey Motion VR</h1>
 
         <p>
@@ -116,6 +119,7 @@
         <p style="font-size:13px;opacity:.7">
             Best used in Meta Quest Browser.
         </p>
+
     </div>
 </div>
 
@@ -124,9 +128,9 @@
 </div>
 
 <div id="help">
-    VR: swing your arms to move.<br>
+    VR: push your hands against surfaces to move.<br>
     Thumbstick: turn.<br>
-    Controller button: reset.<br>
+    Trigger/grip: reset.<br>
     Desktop: WASD + mouse.
 </div>
 
@@ -134,6 +138,11 @@
 
 import * as THREE from
 "https://cdn.jsdelivr.net/npm/three@0.181.2/build/three.module.js";
+
+
+/* =========================================================
+   GLOBALS
+========================================================= */
 
 let renderer;
 let scene;
@@ -143,9 +152,13 @@ let player;
 let mode = "parkour";
 
 let playerVelocity = new THREE.Vector3();
+
 let lastTime = performance.now();
 
 let controllers = [null, null];
+let grips = [null, null];
+
+let handMeshes = [null, null];
 
 let previousHands = [
     new THREE.Vector3(),
@@ -162,22 +175,52 @@ let handInitialized = [
     false
 ];
 
+let handWasTouching = [
+    false,
+    false
+];
+
 let robots = [];
 
-let spawnPoint = new THREE.Vector3(0, 1.6, 6);
+let worldColliders = [];
+
+let spawnPoint =
+    new THREE.Vector3(0, 1.6, 6);
 
 let gameStarted = false;
 
 const keys = {};
 
-const status = document.getElementById("status");
-const menu = document.getElementById("menu");
+const status =
+    document.getElementById("status");
 
-/* ---------------------------------------------------------
-   MATERIALS
---------------------------------------------------------- */
+const menu =
+    document.getElementById("menu");
+
+
+/* =========================================================
+   CONSTANTS
+========================================================= */
+
+const PLAYER_RADIUS = 0.35;
+
+const HAND_RADIUS = 0.14;
+
+const ARM_MOVEMENT_MULTIPLIER = 7.0;
+
+const MAX_PLAYER_SPEED = 7.5;
+
+const GRAVITY = -12;
+
+const FRICTION = 0.88;
+
+
+/* =========================================================
+   MATERIAL
+========================================================= */
 
 function material(color) {
+
     return new THREE.MeshStandardMaterial({
         color: color,
         roughness: .8,
@@ -185,64 +228,119 @@ function material(color) {
     });
 }
 
-/* ---------------------------------------------------------
-   OBJECT CREATION
---------------------------------------------------------- */
+
+/* =========================================================
+   COLLIDER CREATION
+========================================================= */
+
+function addCollider(mesh) {
+
+    worldColliders.push(mesh);
+
+    return mesh;
+}
+
+
+/* =========================================================
+   CUBE
+========================================================= */
 
 function cube(position, size, color) {
 
-    const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(
-            size.x,
-            size.y,
-            size.z
-        ),
-        material(color)
-    );
+    const mesh =
+        new THREE.Mesh(
+            new THREE.BoxGeometry(
+                size.x,
+                size.y,
+                size.z
+            ),
+            material(color)
+        );
 
     mesh.position.copy(position);
 
     scene.add(mesh);
 
+    addCollider(mesh);
+
     return mesh;
 }
 
+
+/* =========================================================
+   ROBOT
+========================================================= */
+
 function makeRobot(position) {
 
-    const robot = new THREE.Group();
+    const robot =
+        new THREE.Group();
 
-    const body = new THREE.Mesh(
-        new THREE.BoxGeometry(.8, 1.0, .6),
-        material(0xd94c5c)
-    );
+    const body =
+        new THREE.Mesh(
+            new THREE.BoxGeometry(
+                .8,
+                1.0,
+                .6
+            ),
+            material(0xd94c5c)
+        );
 
     body.position.y = .55;
 
     robot.add(body);
 
-    const head = new THREE.Mesh(
-        new THREE.BoxGeometry(.7, .55, .62),
-        material(0xa83243)
-    );
+
+    const head =
+        new THREE.Mesh(
+            new THREE.BoxGeometry(
+                .7,
+                .55,
+                .62
+            ),
+            material(0xa83243)
+        );
 
     head.position.y = 1.35;
 
     robot.add(head);
 
-    const eyeMaterial = material(0x65fff5);
 
-    const eye1 = new THREE.Mesh(
-        new THREE.SphereGeometry(.065, 12, 8),
-        eyeMaterial
+    const eyeMaterial =
+        material(0x65fff5);
+
+
+    const eye1 =
+        new THREE.Mesh(
+            new THREE.SphereGeometry(
+                .065,
+                12,
+                8
+            ),
+            eyeMaterial
+        );
+
+
+    const eye2 =
+        eye1.clone();
+
+
+    eye1.position.set(
+        -.17,
+        1.37,
+        -.32
     );
 
-    const eye2 = eye1.clone();
+    eye2.position.set(
+        .17,
+        1.37,
+        -.32
+    );
 
-    eye1.position.set(-.17, 1.37, -.32);
-    eye2.position.set(.17, 1.37, -.32);
 
     robot.add(eye1);
     robot.add(eye2);
+
 
     robot.position.copy(position);
 
@@ -251,51 +349,79 @@ function makeRobot(position) {
     return robot;
 }
 
-/* ---------------------------------------------------------
-   WORLD RESET
---------------------------------------------------------- */
+
+/* =========================================================
+   CLEAR WORLD
+========================================================= */
 
 function clearWorld() {
 
     while (scene.children.length > 0) {
-        scene.remove(scene.children[0]);
+
+        scene.remove(
+            scene.children[0]
+        );
     }
 
     robots = [];
 
-    const sky = new THREE.Color(0x172134);
+    worldColliders = [];
 
-    scene.background = sky;
 
-    const light = new THREE.HemisphereLight(
-        0xffffff,
-        0x283143,
-        1.7
-    );
+    scene.background =
+        new THREE.Color(
+            0x172134
+        );
+
+
+    const light =
+        new THREE.HemisphereLight(
+            0xffffff,
+            0x283143,
+            1.7
+        );
 
     scene.add(light);
 
-    const sun = new THREE.DirectionalLight(
-        0xffffff,
-        2
-    );
 
-    sun.position.set(5, 10, 5);
+    const sun =
+        new THREE.DirectionalLight(
+            0xffffff,
+            2
+        );
+
+    sun.position.set(
+        5,
+        10,
+        5
+    );
 
     scene.add(sun);
 
-    const floor = cube(
-        new THREE.Vector3(0, -0.2, 0),
-        new THREE.Vector3(40, .4, 40),
+
+    /*
+       Large floor collider.
+    */
+
+    cube(
+        new THREE.Vector3(
+            0,
+            -0.2,
+            0
+        ),
+        new THREE.Vector3(
+            40,
+            .4,
+            40
+        ),
         0x344154
     );
-
-    floor.name = "floor";
 }
 
-/* ---------------------------------------------------------
+
+/* =========================================================
    PARKOUR
---------------------------------------------------------- */
+========================================================= */
 
 function buildParkour() {
 
@@ -304,47 +430,71 @@ function buildParkour() {
     status.textContent =
         "Mode: PARKOUR — reach the pink finish!";
 
+
     spawnPoint.set(
         0,
         1.6,
         6
     );
 
-    // Starting platform
+
     cube(
-        new THREE.Vector3(0, 0, 5),
-        new THREE.Vector3(7, .5, 7),
+        new THREE.Vector3(
+            0,
+            0,
+            5
+        ),
+        new THREE.Vector3(
+            7,
+            .5,
+            7
+        ),
         0x4c91ff
     );
 
-    // Main parkour route
+
     const platforms = [
 
         [0, 1.0, 0, 4, .5, 4],
 
-        [3, 1.7, -4, 3.5, .5, 3.5],
+        [3, 1.7, -4,
+         3.5, .5, 3.5],
 
-        [-2.5, 2.5, -8, 3.5, .5, 3.5],
+        [-2.5, 2.5, -8,
+         3.5, .5, 3.5],
 
-        [2.5, 3.3, -12, 3.5, .5, 3.5],
+        [2.5, 3.3, -12,
+         3.5, .5, 3.5],
 
-        [-2, 4.1, -16, 3.5, .5, 3.5],
+        [-2, 4.1, -16,
+         3.5, .5, 3.5],
 
-        [2, 4.9, -20, 3.5, .5, 3.5],
+        [2, 4.9, -20,
+         3.5, .5, 3.5],
 
-        [0, 5.8, -25, 5, .5, 5]
+        [0, 5.8, -25,
+         5, .5, 5]
     ];
+
 
     for (const p of platforms) {
 
         cube(
-            new THREE.Vector3(p[0], p[1], p[2]),
-            new THREE.Vector3(p[3], p[4], p[5]),
+            new THREE.Vector3(
+                p[0],
+                p[1],
+                p[2]
+            ),
+            new THREE.Vector3(
+                p[3],
+                p[4],
+                p[5]
+            ),
             0x438df2
         );
     }
 
-    // Tall wall-jump pillars
+
     for (let i = 0; i < 6; i++) {
 
         cube(
@@ -361,6 +511,7 @@ function buildParkour() {
             0x7b85ff
         );
 
+
         cube(
             new THREE.Vector3(
                 5,
@@ -376,7 +527,7 @@ function buildParkour() {
         );
     }
 
-    // Hanging bars
+
     for (let i = 0; i < 5; i++) {
 
         cube(
@@ -394,7 +545,7 @@ function buildParkour() {
         );
     }
 
-    // Checkpoints
+
     for (let i = 0; i < 4; i++) {
 
         cube(
@@ -412,7 +563,7 @@ function buildParkour() {
         );
     }
 
-    // Finish
+
     cube(
         new THREE.Vector3(
             0,
@@ -428,9 +579,10 @@ function buildParkour() {
     );
 }
 
-/* ---------------------------------------------------------
+
+/* =========================================================
    ROBOT TAG
---------------------------------------------------------- */
+========================================================= */
 
 function buildRobotTag() {
 
@@ -439,45 +591,89 @@ function buildRobotTag() {
     status.textContent =
         "Mode: ROBOT TAG — don't get tagged!";
 
+
     spawnPoint.set(
         0,
         1.6,
         10
     );
 
-    // Arena
+
     cube(
-        new THREE.Vector3(0, 0, 0),
-        new THREE.Vector3(34, .5, 34),
+        new THREE.Vector3(
+            0,
+            0,
+            0
+        ),
+        new THREE.Vector3(
+            34,
+            .5,
+            34
+        ),
         0x26384a
     );
 
-    // Walls
+
     cube(
-        new THREE.Vector3(0, 3, -17),
-        new THREE.Vector3(34, 6, .5),
+        new THREE.Vector3(
+            0,
+            3,
+            -17
+        ),
+        new THREE.Vector3(
+            34,
+            6,
+            .5
+        ),
         0x53657a
     );
 
+
     cube(
-        new THREE.Vector3(0, 3, 17),
-        new THREE.Vector3(34, 6, .5),
+        new THREE.Vector3(
+            0,
+            3,
+            17
+        ),
+        new THREE.Vector3(
+            34,
+            6,
+            .5
+        ),
         0x53657a
     );
 
+
     cube(
-        new THREE.Vector3(-17, 3, 0),
-        new THREE.Vector3(.5, 6, 34),
+        new THREE.Vector3(
+            -17,
+            3,
+            0
+        ),
+        new THREE.Vector3(
+            .5,
+            6,
+            34
+        ),
         0x53657a
     );
 
+
     cube(
-        new THREE.Vector3(17, 3, 0),
-        new THREE.Vector3(.5, 6, 34),
+        new THREE.Vector3(
+            17,
+            3,
+            0
+        ),
+        new THREE.Vector3(
+            .5,
+            6,
+            34
+        ),
         0x53657a
     );
 
-    // Obstacles
+
     for (let i = 0; i < 18; i++) {
 
         const angle =
@@ -485,6 +681,7 @@ function buildRobotTag() {
 
         const radius =
             7 + (i % 3) * 2;
+
 
         cube(
             new THREE.Vector3(
@@ -503,57 +700,210 @@ function buildRobotTag() {
         );
     }
 
-    // Player spawn pad
+
     cube(
-        new THREE.Vector3(0, .2, 10),
-        new THREE.Vector3(3, .2, 3),
+        new THREE.Vector3(
+            0,
+            .2,
+            10
+        ),
+        new THREE.Vector3(
+            3,
+            .2,
+            3
+        ),
         0x64ef8e
     );
 
-    // Robots
-    robots.push(
-        makeRobot(new THREE.Vector3(-8, .7, -8))
-    );
 
     robots.push(
-        makeRobot(new THREE.Vector3(8, .7, -8))
+        makeRobot(
+            new THREE.Vector3(
+                -8,
+                .7,
+                -8
+            )
+        )
     );
 
-    robots.push(
-        makeRobot(new THREE.Vector3(0, .7, -12))
-    );
 
     robots.push(
-        makeRobot(new THREE.Vector3(10, .7, 5))
+        makeRobot(
+            new THREE.Vector3(
+                8,
+                .7,
+                -8
+            )
+        )
+    );
+
+
+    robots.push(
+        makeRobot(
+            new THREE.Vector3(
+                0,
+                .7,
+                -12
+            )
+        )
+    );
+
+
+    robots.push(
+        makeRobot(
+            new THREE.Vector3(
+                10,
+                .7,
+                5
+            )
+        )
     );
 }
 
-/* ---------------------------------------------------------
+
+/* =========================================================
+   CREATE HAND
+========================================================= */
+
+function createHand(index) {
+
+    const group =
+        new THREE.Group();
+
+
+    const palmMaterial =
+        material(
+            index === 0
+                ? 0xff6666
+                : 0x6688ff
+        );
+
+
+    /*
+       Palm
+    */
+
+    const palm =
+        new THREE.Mesh(
+            new THREE.SphereGeometry(
+                .13,
+                16,
+                12
+            ),
+            palmMaterial
+        );
+
+
+    palm.scale.set(
+        1,
+        .75,
+        1.35
+    );
+
+
+    group.add(palm);
+
+
+    /*
+       Fingers
+    */
+
+    for (let i = 0; i < 4; i++) {
+
+        const finger =
+            new THREE.Mesh(
+                new THREE.CapsuleGeometry(
+                    .025,
+                    .09,
+                    4,
+                    8
+                ),
+                palmMaterial
+            );
+
+
+        finger.position.set(
+            -.075 + i * .05,
+            -.01,
+            -.12
+        );
+
+
+        finger.rotation.x =
+            Math.PI / 2;
+
+
+        group.add(finger);
+    }
+
+
+    /*
+       Small wrist
+    */
+
+    const wrist =
+        new THREE.Mesh(
+            new THREE.CylinderGeometry(
+                .045,
+                .06,
+                .16,
+                12
+            ),
+            palmMaterial
+        );
+
+
+    wrist.rotation.x =
+        Math.PI / 2;
+
+
+    wrist.position.z =
+        .12;
+
+
+    group.add(wrist);
+
+
+    return group;
+}
+
+
+/* =========================================================
    VR SETUP
---------------------------------------------------------- */
+========================================================= */
 
 function init() {
 
     if (gameStarted)
         return;
 
+
     gameStarted = true;
 
-    scene = new THREE.Scene();
 
-    camera = new THREE.PerspectiveCamera(
-        75,
-        window.innerWidth /
-        window.innerHeight,
-        .05,
-        1000
-    );
+    scene =
+        new THREE.Scene();
 
-    player = new THREE.Group();
+
+    camera =
+        new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth /
+            window.innerHeight,
+            .01,
+            1000
+        );
+
+
+    player =
+        new THREE.Group();
+
 
     scene.add(player);
 
+
     player.add(camera);
+
 
     camera.position.set(
         0,
@@ -561,82 +911,153 @@ function init() {
         0
     );
 
-    renderer = new THREE.WebGLRenderer({
-        antialias: true
-    });
+
+    renderer =
+        new THREE.WebGLRenderer({
+            antialias: true
+        });
+
 
     renderer.setPixelRatio(
-        Math.min(window.devicePixelRatio, 1.5)
+        Math.min(
+            window.devicePixelRatio,
+            1.5
+        )
     );
+
 
     renderer.setSize(
         window.innerWidth,
         window.innerHeight
     );
 
+
     renderer.xr.enabled = true;
+
+
+    renderer.xr.setReferenceSpaceType(
+        "local-floor"
+    );
+
 
     document.body.appendChild(
         renderer.domElement
     );
 
+
     setupControllers();
+
 
     buildParkour();
 
-    renderer.setAnimationLoop(gameLoop);
+
+    renderer.setAnimationLoop(
+        gameLoop
+    );
 }
 
-/* ---------------------------------------------------------
-   CONTROLLERS
---------------------------------------------------------- */
+
+/* =========================================================
+   CONTROLLERS + GRIPS
+========================================================= */
 
 function setupControllers() {
 
     for (let i = 0; i < 2; i++) {
 
+        /*
+           TARGET RAY
+
+           Used for button input.
+        */
+
         const controller =
             renderer.xr.getController(i);
 
-        controllers[i] = controller;
 
-        scene.add(controller);
+        controllers[i] =
+            controller;
 
-        const marker =
-            new THREE.Mesh(
-                new THREE.SphereGeometry(
-                    .09,
-                    12,
-                    8
-                ),
-                material(
-                    i === 0
-                        ? 0xff7777
-                        : 0x7777ff
-                )
-            );
 
-        controller.add(marker);
+        scene.add(
+            controller
+        );
+
+
+        /*
+           ACTUAL HAND / GRIP POSE
+
+           This is the important part.
+        */
+
+        const grip =
+            renderer.xr.getControllerGrip(i);
+
+
+        grips[i] =
+            grip;
+
+
+        scene.add(
+            grip
+        );
+
+
+        /*
+           Visible monkey hand.
+        */
+
+        const hand =
+            createHand(i);
+
+
+        handMeshes[i] =
+            hand;
+
+
+        grip.add(
+            hand
+        );
+
+
+        /*
+           Controller events.
+        */
 
         controller.addEventListener(
             "connected",
-            e => {
+            event => {
+
                 controller.userData.inputSource =
-                    e.data;
+                    event.data;
+
+                console.log(
+                    "Controller connected:",
+                    i,
+                    event.data.handedness
+                );
             }
         );
+
 
         controller.addEventListener(
             "disconnected",
             () => {
-                controller.userData.inputSource = null;
+
+                controller.userData.inputSource =
+                    null;
+
+                handInitialized[i] =
+                    false;
             }
         );
+
 
         controller.addEventListener(
             "selectstart",
             resetPlayer
         );
+
 
         controller.addEventListener(
             "squeezestart",
@@ -645,40 +1066,492 @@ function setupControllers() {
     }
 }
 
-/* ---------------------------------------------------------
+
+/* =========================================================
+   GET HAND POSITION
+========================================================= */
+
+function getHandWorldPosition(
+    index,
+    target
+) {
+
+    if (!grips[index])
+        return false;
+
+
+    grips[index].getWorldPosition(
+        target
+    );
+
+
+    return true;
+}
+
+
+/* =========================================================
+   BOX COLLISION
+========================================================= */
+
+function sphereIntersectsBox(
+    sphere,
+    radius,
+    box
+) {
+
+    const boxMin =
+        new THREE.Vector3();
+
+    const boxMax =
+        new THREE.Vector3();
+
+
+    box.geometry.computeBoundingBox();
+
+
+    boxMin.copy(
+        box.geometry.boundingBox.min
+    );
+
+    boxMax.copy(
+        box.geometry.boundingBox.max
+    );
+
+
+    box.localToWorld(
+        boxMin
+    );
+
+    box.localToWorld(
+        boxMax
+    );
+
+
+    const closest =
+        new THREE.Vector3(
+            THREE.MathUtils.clamp(
+                sphere.x,
+                Math.min(boxMin.x, boxMax.x),
+                Math.max(boxMin.x, boxMax.x)
+            ),
+
+            THREE.MathUtils.clamp(
+                sphere.y,
+                Math.min(boxMin.y, boxMax.y),
+                Math.max(boxMin.y, boxMax.y)
+            ),
+
+            THREE.MathUtils.clamp(
+                sphere.z,
+                Math.min(boxMin.z, boxMax.z),
+                Math.max(boxMin.z, boxMax.z)
+            )
+        );
+
+
+    return closest.distanceToSquared(
+        sphere
+    ) <= radius * radius;
+}
+
+
+/* =========================================================
+   HAND SURFACE COLLISION
+========================================================= */
+
+function checkHandCollision(
+    handPosition
+) {
+
+    for (const collider of worldColliders) {
+
+        if (
+            sphereIntersectsBox(
+                handPosition,
+                HAND_RADIUS,
+                collider
+            )
+        ) {
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+/* =========================================================
+   GTAG ARM MOVEMENT
+========================================================= */
+
+function updateArmMovement() {
+
+    const movement =
+        new THREE.Vector3();
+
+
+    let touchingHands = 0;
+
+
+    for (let i = 0; i < 2; i++) {
+
+        if (
+            !getHandWorldPosition(
+                i,
+                handPositions[i]
+            )
+        ) {
+            continue;
+        }
+
+
+        if (!handInitialized[i]) {
+
+            previousHands[i].copy(
+                handPositions[i]
+            );
+
+            handInitialized[i] =
+                true;
+
+            continue;
+        }
+
+
+        const current =
+            handPositions[i];
+
+
+        const previous =
+            previousHands[i];
+
+
+        /*
+           How far the hand moved.
+        */
+
+        const handDelta =
+            current.clone().sub(
+                previous
+            );
+
+
+        const amount =
+            handDelta.length();
+
+
+        /*
+           Did the hand hit a surface?
+        */
+
+        const touching =
+            checkHandCollision(
+                current
+            );
+
+
+        /*
+           GTAG PRINCIPLE:
+
+           When your hand moves backward
+           against a surface, your body
+           moves forward.
+        */
+
+        if (
+            touching &&
+            amount > .003 &&
+            amount < .5
+        ) {
+
+            /*
+               Reverse hand movement.
+
+               This is what creates the
+               monkey locomotion effect.
+            */
+
+            const push =
+                handDelta
+                    .clone()
+                    .negate();
+
+
+            /*
+               Stronger push when actually
+               touching a surface.
+            */
+
+            push.multiplyScalar(
+                ARM_MOVEMENT_MULTIPLIER
+            );
+
+
+            movement.add(
+                push
+            );
+
+
+            touchingHands++;
+        }
+
+
+        handWasTouching[i] =
+            touching;
+
+
+        previousHands[i].copy(
+            current
+        );
+    }
+
+
+    if (touchingHands > 0) {
+
+        movement.multiplyScalar(
+            1 / touchingHands
+        );
+
+
+        /*
+           Apply movement relative to
+           the player's rotation.
+        */
+
+        const rotated =
+            movement.clone()
+                .applyQuaternion(
+                    player.quaternion
+                );
+
+
+        playerVelocity.add(
+            rotated
+        );
+    }
+
+
+    /*
+       Limit velocity.
+    */
+
+    if (
+        playerVelocity.length()
+        > MAX_PLAYER_SPEED
+    ) {
+
+        playerVelocity.setLength(
+            MAX_PLAYER_SPEED
+        );
+    }
+}
+
+
+/* =========================================================
+   BODY COLLISION
+========================================================= */
+
+function resolvePlayerCollision() {
+
+    if (!player)
+        return;
+
+
+    /*
+       Player's world position.
+    */
+
+    const position =
+        new THREE.Vector3();
+
+
+    player.getWorldPosition(
+        position
+    );
+
+
+    /*
+       Check nearby boxes.
+
+       We use a small sphere around
+       the player instead of allowing
+       the body to pass through walls.
+    */
+
+    for (const collider of worldColliders) {
+
+        const box =
+            new THREE.Box3()
+                .setFromObject(
+                    collider
+                );
+
+
+        const closest =
+            box.clampPoint(
+                position,
+                new THREE.Vector3()
+            );
+
+
+        const difference =
+            position.clone()
+                .sub(closest);
+
+
+        const distance =
+            difference.length();
+
+
+        if (
+            distance < PLAYER_RADIUS &&
+            distance > .0001
+        ) {
+
+            /*
+               Push player outside.
+            */
+
+            const correction =
+                difference.normalize()
+                    .multiplyScalar(
+                        PLAYER_RADIUS -
+                        distance
+                    );
+
+
+            player.position.add(
+                correction
+            );
+
+
+            /*
+               Remove velocity going into
+               the wall.
+            */
+
+            const normal =
+                difference.normalize();
+
+
+            const velocityIntoWall =
+                playerVelocity.dot(
+                    normal
+                );
+
+
+            if (
+                velocityIntoWall < 0
+            ) {
+
+                playerVelocity.sub(
+                    normal.clone()
+                        .multiplyScalar(
+                            velocityIntoWall
+                        )
+                );
+            }
+        }
+    }
+}
+
+
+/* =========================================================
    RESET
---------------------------------------------------------- */
+========================================================= */
 
 function resetPlayer() {
 
     if (!player)
         return;
 
+
     player.position.set(
-        -spawnPoint.x,
+        spawnPoint.x,
         0,
-        -spawnPoint.z
+        spawnPoint.z
     );
 
-    camera.position.y = spawnPoint.y;
 
-    playerVelocity.set(0, 0, 0);
+    player.rotation.set(
+        0,
+        0,
+        0
+    );
+
+
+    camera.position.set(
+        0,
+        spawnPoint.y,
+        0
+    );
+
+
+    playerVelocity.set(
+        0,
+        0,
+        0
+    );
+
 
     for (let i = 0; i < 2; i++) {
 
-        handInitialized[i] = false;
+        handInitialized[i] =
+            false;
+
+        handWasTouching[i] =
+            false;
+    }
+
+
+    if (mode === "tag") {
+
+        /*
+           Reset robots.
+        */
+
+        const positions = [
+
+            [-8, .7, -8],
+            [8, .7, -8],
+            [0, .7, -12],
+            [10, .7, 5]
+
+        ];
+
+
+        for (
+            let i = 0;
+            i < robots.length;
+            i++
+        ) {
+
+            robots[i].position.set(
+                positions[i][0],
+                positions[i][1],
+                positions[i][2]
+            );
+        }
     }
 }
 
-/* ---------------------------------------------------------
+
+/* =========================================================
    MODE SWITCH
---------------------------------------------------------- */
+========================================================= */
 
-function switchMode(newMode) {
+function switchMode(
+    newMode
+) {
 
-    mode = newMode;
+    mode =
+        newMode;
 
-    if (mode === "parkour") {
+
+    if (
+        mode === "parkour"
+    ) {
 
         buildParkour();
 
@@ -687,120 +1560,65 @@ function switchMode(newMode) {
         buildRobotTag();
     }
 
+
     resetPlayer();
 }
 
-/* ---------------------------------------------------------
-   ARM SWING MOVEMENT
---------------------------------------------------------- */
 
-function updateArmMovement() {
-
-    const movement =
-        new THREE.Vector3();
-
-    let validHands = 0;
-
-    for (let i = 0; i < 2; i++) {
-
-        const controller =
-            controllers[i];
-
-        if (!controller)
-            continue;
-
-        controller.getWorldPosition(
-            handPositions[i]
-        );
-
-        if (!handInitialized[i]) {
-
-            previousHands[i].copy(
-                handPositions[i]
-            );
-
-            handInitialized[i] = true;
-
-            continue;
-        }
-
-        const push =
-            previousHands[i]
-                .clone()
-                .sub(handPositions[i]);
-
-        const amount = push.length();
-
-        /*
-          Only count realistic hand movements.
-        */
-
-        if (
-            amount > .008 &&
-            amount < .35
-        ) {
-
-            movement.add(push);
-
-            validHands++;
-        }
-
-        previousHands[i].copy(
-            handPositions[i]
-        );
-    }
-
-    if (validHands > 0) {
-
-        movement.multiplyScalar(
-            4.0 / validHands
-        );
-
-        playerVelocity.add(
-            movement
-        );
-    }
-
-    // Maximum movement speed
-    if (
-        playerVelocity.length() > 6
-    ) {
-
-        playerVelocity.setLength(6);
-    }
-}
-
-/* ---------------------------------------------------------
+/* =========================================================
    ROBOT AI
---------------------------------------------------------- */
+========================================================= */
 
-function updateRobots(delta) {
+function updateRobots(
+    delta
+) {
 
-    for (const robot of robots) {
+    for (
+        const robot of robots
+    ) {
 
         const target =
             player.position.clone();
 
-        target.y = robot.position.y;
+
+        target.y =
+            robot.position.y;
+
 
         const direction =
-            target.sub(robot.position);
+            target.sub(
+                robot.position
+            );
+
 
         const distance =
             direction.length();
 
-        if (distance < .01)
+
+        if (
+            distance < .01
+        )
             continue;
+
 
         direction.normalize();
 
-        let speed = 2;
 
-        if (distance < 8)
+        let speed =
+            2;
+
+
+        if (
+            distance < 8
+        )
             speed = 3.5;
 
-        if (distance < 4)
+
+        if (
+            distance < 4
+        )
             speed = 4.5;
+
 
         robot.position.add(
             direction.multiplyScalar(
@@ -808,13 +1626,14 @@ function updateRobots(delta) {
             )
         );
 
+
         robot.lookAt(
             player.position.x,
             robot.position.y,
             player.position.z
         );
 
-        // Tagged
+
         if (
             robot.position.distanceTo(
                 player.position
@@ -823,6 +1642,7 @@ function updateRobots(delta) {
 
             status.textContent =
                 "🤖 TAGGED! Press a controller button to respawn.";
+
 
             playerVelocity.set(
                 0,
@@ -833,35 +1653,50 @@ function updateRobots(delta) {
     }
 }
 
-/* ---------------------------------------------------------
-   DESKTOP MOVEMENT
---------------------------------------------------------- */
 
-function desktopMovement(delta) {
+/* =========================================================
+   DESKTOP MOVEMENT
+========================================================= */
+
+function desktopMovement(
+    delta
+) {
 
     if (!player)
         return;
 
+
     const direction =
         new THREE.Vector3();
+
 
     if (keys["w"])
         direction.z -= 1;
 
+
     if (keys["s"])
         direction.z += 1;
+
 
     if (keys["a"])
         direction.x -= 1;
 
+
     if (keys["d"])
         direction.x += 1;
+
 
     if (
         direction.lengthSq() > 0
     ) {
 
         direction.normalize();
+
+
+        direction.applyQuaternion(
+            player.quaternion
+        );
+
 
         player.position.add(
             direction.multiplyScalar(
@@ -871,22 +1706,33 @@ function desktopMovement(delta) {
     }
 }
 
-/* ---------------------------------------------------------
+
+/* =========================================================
    THUMBSTICK TURN
---------------------------------------------------------- */
+========================================================= */
 
-function updateTurning(delta) {
+function updateTurning(
+    delta
+) {
 
-    if (!renderer.xr.isPresenting)
+    if (
+        !renderer.xr.isPresenting
+    )
         return;
 
-    for (const controller of controllers) {
+
+    for (
+        const controller of controllers
+    ) {
 
         if (!controller)
             continue;
 
+
         const source =
-            controller.userData.inputSource;
+            controller.userData
+                .inputSource;
+
 
         if (
             !source ||
@@ -894,60 +1740,152 @@ function updateTurning(delta) {
         )
             continue;
 
+
         const axes =
             source.gamepad.axes;
+
 
         if (!axes)
             continue;
 
+
+        /*
+           Quest controllers normally expose
+           thumbstick axes around index 2/3.
+        */
+
         let x = 0;
 
-        if (axes.length >= 4)
-            x = axes[2];
 
-        if (Math.abs(x) > .35) {
+        if (
+            axes.length >= 4
+        ) {
+
+            x = axes[2];
+        }
+
+
+        if (
+            Math.abs(x) > .25
+        ) {
 
             player.rotation.y -=
-                x * delta * 1.7;
+                x *
+                delta *
+                1.7;
         }
     }
 }
 
-/* ---------------------------------------------------------
-   PLAYER
---------------------------------------------------------- */
 
-function updatePlayer(delta) {
+/* =========================================================
+   FLOOR / GRAVITY
+========================================================= */
+
+function updateGravity(
+    delta
+) {
+
+    /*
+       Approximate gravity.
+
+       GTAG movement is mostly surface
+       based, but this keeps the player
+       from floating forever.
+    */
+
+    playerVelocity.y +=
+        GRAVITY * delta;
+
+
+    /*
+       Don't let gravity become ridiculous.
+    */
+
+    if (
+        playerVelocity.y < -15
+    ) {
+
+        playerVelocity.y =
+            -15;
+    }
+}
+
+
+/* =========================================================
+   PLAYER
+========================================================= */
+
+function updatePlayer(
+    delta
+) {
 
     updateArmMovement();
 
     updateTurning(delta);
 
-    // Damp movement
-    playerVelocity.multiplyScalar(
-        Math.pow(.86, delta * 60)
-    );
+    updateGravity(delta);
+
+
+    /*
+       Friction.
+
+       Horizontal movement slows down
+       naturally.
+    */
+
+    playerVelocity.x *=
+        Math.pow(
+            FRICTION,
+            delta * 60
+        );
+
+
+    playerVelocity.z *=
+        Math.pow(
+            FRICTION,
+            delta * 60
+        );
+
 
     player.position.addScaledVector(
         playerVelocity,
         delta
     );
 
-    // Reset if player falls
+
+    /*
+       Body collision.
+    */
+
+    resolvePlayerCollision();
+
+
+    /*
+       Reset after falling.
+    */
+
     if (
         player.position.y < -8
     ) {
 
         resetPlayer();
+
+        return;
     }
 
-    if (mode === "parkour") {
 
-        // Finish
-        const finishZ = -25;
+    /*
+       Parkour finish.
+    */
+
+    if (
+        mode === "parkour"
+    ) {
 
         if (
-            player.position.z < finishZ + 2
+            player.position.z <
+            -23
         ) {
 
             status.textContent =
@@ -955,31 +1893,57 @@ function updatePlayer(delta) {
         }
     }
 
-    if (mode === "tag") {
 
-        updateRobots(delta);
+    /*
+       Robot tag.
+    */
+
+    if (
+        mode === "tag"
+    ) {
+
+        updateRobots(
+            delta
+        );
     }
 }
 
-/* ---------------------------------------------------------
+
+/* =========================================================
    GAME LOOP
---------------------------------------------------------- */
+========================================================= */
 
 function gameLoop() {
 
     const now =
         performance.now();
 
+
     let delta =
-        (now - lastTime) / 1000;
+        (now - lastTime) /
+        1000;
 
-    lastTime = now;
 
-    delta = Math.min(delta, .05);
+    lastTime =
+        now;
 
-    updatePlayer(delta);
 
-    desktopMovement(delta);
+    delta =
+        Math.min(
+            delta,
+            .05
+        );
+
+
+    updatePlayer(
+        delta
+    );
+
+
+    desktopMovement(
+        delta
+    );
+
 
     renderer.render(
         scene,
@@ -987,9 +1951,10 @@ function gameLoop() {
     );
 }
 
-/* ---------------------------------------------------------
+
+/* =========================================================
    BUTTONS
---------------------------------------------------------- */
+========================================================= */
 
 document.getElementById(
     "parkourBtn"
@@ -1005,6 +1970,7 @@ document.getElementById(
         "none";
 };
 
+
 document.getElementById(
     "tagBtn"
 ).onclick = () => {
@@ -1019,56 +1985,91 @@ document.getElementById(
         "none";
 };
 
+
+/* =========================================================
+   START VR
+========================================================= */
+
 document.getElementById(
     "startVR"
 ).onclick = async () => {
 
     init();
 
-    if (
-        !navigator.xr
-    ) {
+
+    if (!navigator.xr) {
 
         alert(
-            "WebXR is not available in this browser. Open the page in Meta Quest Browser."
+            "WebXR is not available. Open this page in Meta Quest Browser."
         );
 
         return;
     }
 
+
     try {
+
+        const supported =
+            await navigator.xr.isSessionSupported(
+                "immersive-vr"
+            );
+
+
+        if (!supported) {
+
+            alert(
+                "This browser does not support immersive VR."
+            );
+
+            return;
+        }
+
 
         const session =
             await navigator.xr.requestSession(
                 "immersive-vr",
                 {
+                    requiredFeatures: [
+                        "local-floor"
+                    ],
+
                     optionalFeatures: [
-                        "local-floor",
                         "bounded-floor"
                     ]
                 }
             );
 
+
         await renderer.xr.setSession(
             session
         );
 
+
         menu.style.display =
             "none";
 
+
+        status.textContent =
+            "🐒 VR ACTIVE — push off surfaces with your hands!";
+
+
     } catch (error) {
 
-        console.error(error);
+        console.error(
+            error
+        );
+
 
         alert(
-            "VR could not start. Make sure you are using the Meta Quest Browser and the page is hosted over HTTPS."
+            "VR could not start. Make sure you are using Meta Quest Browser and HTTPS."
         );
     }
 };
 
-/* ---------------------------------------------------------
+
+/* =========================================================
    KEYBOARD
---------------------------------------------------------- */
+========================================================= */
 
 window.addEventListener(
     "keydown",
@@ -1077,6 +2078,7 @@ window.addEventListener(
         keys[
             e.key.toLowerCase()
         ] = true;
+
 
         if (
             e.key.toLowerCase() === "1"
@@ -1087,7 +2089,11 @@ window.addEventListener(
             switchMode(
                 "parkour"
             );
+
+            menu.style.display =
+                "none";
         }
+
 
         if (
             e.key.toLowerCase() === "2"
@@ -1098,7 +2104,11 @@ window.addEventListener(
             switchMode(
                 "tag"
             );
+
+            menu.style.display =
+                "none";
         }
+
 
         if (
             e.key.toLowerCase() === "r"
@@ -1108,6 +2118,7 @@ window.addEventListener(
         }
     }
 );
+
 
 window.addEventListener(
     "keyup",
@@ -1119,22 +2130,29 @@ window.addEventListener(
     }
 );
 
-/* ---------------------------------------------------------
+
+/* =========================================================
    RESIZE
---------------------------------------------------------- */
+========================================================= */
 
 window.addEventListener(
     "resize",
     () => {
 
-        if (!camera || !renderer)
+        if (
+            !camera ||
+            !renderer
+        )
             return;
+
 
         camera.aspect =
             window.innerWidth /
             window.innerHeight;
 
+
         camera.updateProjectionMatrix();
+
 
         renderer.setSize(
             window.innerWidth,
@@ -1144,5 +2162,6 @@ window.addEventListener(
 );
 
 </script>
+
 </body>
 </html>
