@@ -2,14 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-
 <meta name="viewport"
       content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 
 <title>Monkey Motion VR</title>
 
 <style>
-
 html,body{
     margin:0;
     width:100%;
@@ -26,18 +24,20 @@ canvas{
 #menu{
     position:fixed;
     inset:0;
-    z-index:10;
+    z-index:100;
 
     display:flex;
     align-items:center;
     justify-content:center;
+
+    pointer-events:auto;
 }
 
 #panel{
     width:min(520px,90vw);
     padding:25px;
 
-    background:rgba(10,15,25,.94);
+    background:rgba(10,15,25,.96);
 
     border:2px solid #58e7ff;
     border-radius:20px;
@@ -62,6 +62,8 @@ button{
 
     font-size:17px;
     font-weight:bold;
+
+    cursor:pointer;
 }
 
 #startVR{
@@ -81,16 +83,16 @@ button{
     left:12px;
     top:12px;
 
-    z-index:5;
+    z-index:50;
 
     color:white;
     background:rgba(0,0,0,.55);
 
     padding:9px 12px;
-
     border-radius:10px;
 
     font-size:14px;
+    pointer-events:none;
 }
 
 #debug{
@@ -98,13 +100,12 @@ button{
     right:12px;
     top:12px;
 
-    z-index:5;
+    z-index:50;
 
     color:white;
     background:rgba(0,0,0,.55);
 
     padding:8px 10px;
-
     border-radius:8px;
 
     font-family:monospace;
@@ -112,19 +113,12 @@ button{
 
     pointer-events:none;
 }
-
 </style>
 </head>
 
 <body>
 
-
-<!-- =====================================================
-     MENU
-===================================================== -->
-
 <div id="menu">
-
     <div id="panel">
 
         <h1>🐒 Monkey Motion VR</h1>
@@ -151,23 +145,18 @@ button{
         </p>
 
     </div>
-
 </div>
-
 
 <div id="status">
     Waiting for VR...
 </div>
 
-
 <div id="debug">
-    LEFT: --
+    LEFT: --<br>
     RIGHT: --
 </div>
 
-
 <script type="module">
-
 
 import * as THREE from
 "https://cdn.jsdelivr.net/npm/three@0.181.2/build/three.module.js";
@@ -178,41 +167,16 @@ import * as THREE from
 ===================================================== */
 
 let scene;
-
 let camera;
-
 let renderer;
-
 let player;
 
 let gameStarted=false;
-
 let mode="parkour";
 
-
-/* =====================================================
-   VR
-===================================================== */
-
-const controllers=[
-    null,
-    null
-];
-
-const grips=[
-    null,
-    null
-];
-
-const hands=[
-    null,
-    null
-];
-
-
-/* =====================================================
-   HAND TRACKING
-===================================================== */
+const controllers=[null,null];
+const grips=[null,null];
+const hands=[null,null];
 
 const handPositions=[
     new THREE.Vector3(),
@@ -234,58 +198,29 @@ const handInitialized=[
     false
 ];
 
+const velocity=new THREE.Vector3();
 
-/* =====================================================
-   PLAYER
-===================================================== */
-
-const velocity=
-    new THREE.Vector3();
-
-const spawnPoint=
-    new THREE.Vector3(
-        0,
-        1.6,
-        6
-    );
-
-
-/* =====================================================
-   WORLD
-===================================================== */
+const spawnPoint=new THREE.Vector3(
+    0,
+    1.6,
+    6
+);
 
 const colliders=[];
+const worldObjects=[];
 
 let robots=[];
 
-
-/* =====================================================
-   SETTINGS
-===================================================== */
-
 const HAND_RADIUS=.16;
-
 const PLAYER_RADIUS=.35;
 
 const MAX_SPEED=7;
-
 const GRAVITY=-10;
-
 const PUSH_STRENGTH=7;
 
-
-/* =====================================================
-   UI
-===================================================== */
-
-const menu=
-    document.getElementById("menu");
-
-const status=
-    document.getElementById("status");
-
-const debug=
-    document.getElementById("debug");
+const menu=document.getElementById("menu");
+const status=document.getElementById("status");
+const debug=document.getElementById("debug");
 
 
 /* =====================================================
@@ -295,7 +230,7 @@ const debug=
 function mat(color){
 
     return new THREE.MeshStandardMaterial({
-        color:color,
+        color,
         roughness:.8,
         metalness:.05
     });
@@ -304,77 +239,61 @@ function mat(color){
 
 
 /* =====================================================
-   CUBE
+   WORLD OBJECT
 ===================================================== */
 
-function cube(
-    position,
-    size,
-    color,
-    collide=true
-){
+function cube(position,size,color,collide=true){
 
-    const mesh=
-        new THREE.Mesh(
-
-            new THREE.BoxGeometry(
-                size.x,
-                size.y,
-                size.z
-            ),
-
-            mat(color)
-
-        );
-
-
-    mesh.position.copy(
-        position
+    const mesh=new THREE.Mesh(
+        new THREE.BoxGeometry(
+            size.x,
+            size.y,
+            size.z
+        ),
+        mat(color)
     );
 
+    mesh.position.copy(position);
 
-    scene.add(
-        mesh
-    );
+    scene.add(mesh);
 
+    worldObjects.push(mesh);
 
     if(collide){
-
-        colliders.push(
-            mesh
-        );
-
+        colliders.push(mesh);
     }
-
 
     return mesh;
 }
 
 
 /* =====================================================
-   CLEAR WORLD
+   CLEAR ONLY THE WORLD
+   IMPORTANT:
+   DO NOT DELETE PLAYER/CAMERA/CONTROLLERS
 ===================================================== */
 
 function clearWorld(){
 
-    while(scene.children.length){
+    for(const object of worldObjects){
 
-        scene.remove(
-            scene.children[0]
-        );
+        scene.remove(object);
+
+        object.geometry.dispose();
+
+        if(object.material){
+            object.material.dispose();
+        }
 
     }
 
-
+    worldObjects.length=0;
     colliders.length=0;
-
     robots=[];
 
 
     scene.background=
-        new THREE.Color(
-            0x172134
-        );
+        new THREE.Color(0x172134);
 
 
     const hemi=
@@ -384,10 +303,9 @@ function clearWorld(){
             1.7
         );
 
+    scene.add(hemi);
 
-    scene.add(
-        hemi
-    );
+    worldObjects.push(hemi);
 
 
     const sun=
@@ -396,32 +314,20 @@ function clearWorld(){
             2
         );
 
-
     sun.position.set(
         5,
         10,
         5
     );
 
+    scene.add(sun);
 
-    scene.add(
-        sun
-    );
+    worldObjects.push(sun);
 
 
     cube(
-        new THREE.Vector3(
-            0,
-            -.25,
-            0
-        ),
-
-        new THREE.Vector3(
-            40,
-            .5,
-            40
-        ),
-
+        new THREE.Vector3(0,-.25,0),
+        new THREE.Vector3(40,.5,40),
         0x344154
     );
 
@@ -436,10 +342,8 @@ function buildParkour(){
 
     clearWorld();
 
-
     status.textContent=
         "PARKOUR — push yourself through the course";
-
 
     spawnPoint.set(
         0,
@@ -449,47 +353,28 @@ function buildParkour(){
 
 
     cube(
-        new THREE.Vector3(
-            0,
-            0,
-            5
-        ),
-
-        new THREE.Vector3(
-            7,
-            .5,
-            7
-        ),
-
+        new THREE.Vector3(0,0,5),
+        new THREE.Vector3(7,.5,7),
         0x4c91ff
     );
 
 
     const platforms=[
 
-        [0,1,-0,4,.5,4],
-
+        [0,1,0,4,.5,4],
         [3,1.7,-4,3.5,.5,3.5],
-
         [-2.5,2.5,-8,3.5,.5,3.5],
-
         [2.5,3.3,-12,3.5,.5,3.5],
-
         [-2,4.1,-16,3.5,.5,3.5],
-
         [2,4.9,-20,3.5,.5,3.5],
-
         [0,5.8,-25,5,.5,5]
 
     ];
 
 
-    for(
-        const p of platforms
-    ){
+    for(const p of platforms){
 
         cube(
-
             new THREE.Vector3(
                 p[0],
                 p[1],
@@ -503,18 +388,14 @@ function buildParkour(){
             ),
 
             0x438df2
-
         );
 
     }
 
 
-    /* WALLS */
-
     for(let i=0;i<6;i++){
 
         cube(
-
             new THREE.Vector3(
                 -5,
                 1.5+i*.75,
@@ -528,12 +409,10 @@ function buildParkour(){
             ),
 
             0x7b85ff
-
         );
 
 
         cube(
-
             new THREE.Vector3(
                 5,
                 1.5+i*.75,
@@ -547,18 +426,14 @@ function buildParkour(){
             ),
 
             0x7b85ff
-
         );
 
     }
 
 
-    /* BARS */
-
     for(let i=0;i<5;i++){
 
         cube(
-
             new THREE.Vector3(
                 0,
                 2.5+i*.75,
@@ -572,30 +447,15 @@ function buildParkour(){
             ),
 
             0xffd45c
-
         );
 
     }
 
 
-    /* FINISH */
-
     cube(
-
-        new THREE.Vector3(
-            0,
-            6.1,
-            -25
-        ),
-
-        new THREE.Vector3(
-            3.5,
-            .15,
-            3.5
-        ),
-
+        new THREE.Vector3(0,6.1,-25),
+        new THREE.Vector3(3.5,.15,3.5),
         0xff5e91
-
     );
 
 }
@@ -607,73 +467,37 @@ function buildParkour(){
 
 function createRobot(position){
 
-    const robot=
-        new THREE.Group();
+    const robot=new THREE.Group();
 
-
-    const body=
-        new THREE.Mesh(
-
-            new THREE.BoxGeometry(
-                .8,
-                1,
-                .6
-            ),
-
-            mat(0xd94c5c)
-
-        );
-
+    const body=new THREE.Mesh(
+        new THREE.BoxGeometry(.8,1,.6),
+        mat(0xd94c5c)
+    );
 
     body.position.y=.55;
 
-    robot.add(
-        body
+    robot.add(body);
+
+
+    const head=new THREE.Mesh(
+        new THREE.BoxGeometry(.7,.55,.62),
+        mat(0xa83243)
     );
-
-
-    const head=
-        new THREE.Mesh(
-
-            new THREE.BoxGeometry(
-                .7,
-                .55,
-                .62
-            ),
-
-            mat(0xa83243)
-
-        );
-
 
     head.position.y=1.35;
 
-    robot.add(
-        head
+    robot.add(head);
+
+
+    const eyeMat=mat(0x65fff5);
+
+
+    const eye1=new THREE.Mesh(
+        new THREE.SphereGeometry(.07,12,8),
+        eyeMat
     );
 
-
-    const eyeMat=
-        mat(0x65fff5);
-
-
-    const eye1=
-        new THREE.Mesh(
-
-            new THREE.SphereGeometry(
-                .07,
-                12,
-                8
-            ),
-
-            eyeMat
-
-        );
-
-
-    const eye2=
-        eye1.clone();
-
+    const eye2=eye1.clone();
 
     eye1.position.set(
         -.17,
@@ -681,13 +505,11 @@ function createRobot(position){
         -.32
     );
 
-
     eye2.position.set(
         .17,
         1.37,
         -.32
     );
-
 
     robot.add(
         eye1,
@@ -695,15 +517,11 @@ function createRobot(position){
     );
 
 
-    robot.position.copy(
-        position
-    );
+    robot.position.copy(position);
 
+    scene.add(robot);
 
-    scene.add(
-        robot
-    );
-
+    worldObjects.push(robot);
 
     return robot;
 }
@@ -717,10 +535,8 @@ function buildRobotTag(){
 
     clearWorld();
 
-
     status.textContent=
         "ROBOT TAG — don't get tagged!";
-
 
     spawnPoint.set(
         0,
@@ -730,96 +546,53 @@ function buildRobotTag(){
 
 
     cube(
-
-        new THREE.Vector3(
-            0,
-            0,
-            0
-        ),
-
-        new THREE.Vector3(
-            34,
-            .5,
-            34
-        ),
-
+        new THREE.Vector3(0,0,0),
+        new THREE.Vector3(34,.5,34),
         0x26384a
-
     );
 
 
-    /* ARENA WALLS */
-
     cube(
-        new THREE.Vector3(
-            0,3,-17
-        ),
-        new THREE.Vector3(
-            34,6,.5
-        ),
+        new THREE.Vector3(0,3,-17),
+        new THREE.Vector3(34,6,.5),
         0x53657a
     );
 
 
     cube(
-        new THREE.Vector3(
-            0,3,17
-        ),
-        new THREE.Vector3(
-            34,6,.5
-        ),
+        new THREE.Vector3(0,3,17),
+        new THREE.Vector3(34,6,.5),
         0x53657a
     );
 
 
     cube(
-        new THREE.Vector3(
-            -17,3,0
-        ),
-        new THREE.Vector3(
-            .5,6,34
-        ),
+        new THREE.Vector3(-17,3,0),
+        new THREE.Vector3(.5,6,34),
         0x53657a
     );
 
 
     cube(
-        new THREE.Vector3(
-            17,3,0
-        ),
-        new THREE.Vector3(
-            .5,6,34
-        ),
+        new THREE.Vector3(17,3,0),
+        new THREE.Vector3(.5,6,34),
         0x53657a
     );
 
 
-    /* OBSTACLES */
-
-    for(
-        let i=0;
-        i<18;
-        i++
-    ){
+    for(let i=0;i<18;i++){
 
         const angle=
             i*Math.PI*2/18;
 
-
         const radius=
             7+(i%3)*2;
 
-
         cube(
-
             new THREE.Vector3(
-
                 Math.cos(angle)*radius,
-
                 1,
-
                 Math.sin(angle)*radius
-
             ),
 
             new THREE.Vector3(
@@ -831,7 +604,6 @@ function buildRobotTag(){
             i%2
                 ? 0x3978b7
                 : 0x4d9c73
-
         );
 
     }
@@ -839,36 +611,28 @@ function buildRobotTag(){
 
     robots.push(
         createRobot(
-            new THREE.Vector3(
-                -8,.7,-8
-            )
+            new THREE.Vector3(-8,.7,-8)
         )
     );
 
 
     robots.push(
         createRobot(
-            new THREE.Vector3(
-                8,.7,-8
-            )
+            new THREE.Vector3(8,.7,-8)
         )
     );
 
 
     robots.push(
         createRobot(
-            new THREE.Vector3(
-                0,.7,-12
-            )
+            new THREE.Vector3(0,.7,-12)
         )
     );
 
 
     robots.push(
         createRobot(
-            new THREE.Vector3(
-                10,.7,5
-            )
+            new THREE.Vector3(10,.7,5)
         )
     );
 
@@ -876,8 +640,994 @@ function buildRobotTag(){
 
 
 /* =====================================================
-   CREATE HAND
+   HAND
 ===================================================== */
 
-function createH
-```
+function createHand(index){
+
+    const group=new THREE.Group();
+
+    const handMaterial=mat(
+        index===0
+            ? 0xff5555
+            : 0x5588ff
+    );
+
+
+    const palm=new THREE.Mesh(
+        new THREE.SphereGeometry(
+            .15,
+            20,
+            16
+        ),
+        handMaterial
+    );
+
+    palm.scale.set(
+        1,
+        .8,
+        1.25
+    );
+
+    group.add(palm);
+
+
+    for(let i=0;i<4;i++){
+
+        const finger=new THREE.Mesh(
+            new THREE.CapsuleGeometry(
+                .035,
+                .11,
+                4,
+                8
+            ),
+            handMaterial
+        );
+
+        finger.position.set(
+            -.09+i*.06,
+            -.015,
+            -.13
+        );
+
+        finger.rotation.x=
+            Math.PI/2;
+
+        group.add(finger);
+
+    }
+
+
+    return group;
+}
+
+
+/* =====================================================
+   INITIALIZE
+===================================================== */
+
+function init(){
+
+    if(gameStarted)
+        return;
+
+
+    gameStarted=true;
+
+
+    scene=new THREE.Scene();
+
+
+    camera=new THREE.PerspectiveCamera(
+        70,
+        window.innerWidth/
+        window.innerHeight,
+        .01,
+        1000
+    );
+
+
+    player=new THREE.Group();
+
+    scene.add(player);
+
+    player.add(camera);
+
+
+    camera.position.set(
+        0,
+        1.6,
+        0
+    );
+
+
+    renderer=new THREE.WebGLRenderer({
+        antialias:true
+    });
+
+
+    renderer.setPixelRatio(
+        Math.min(
+            window.devicePixelRatio,
+            1.5
+        )
+    );
+
+
+    renderer.setSize(
+        window.innerWidth,
+        window.innerHeight
+    );
+
+
+    renderer.xr.enabled=true;
+
+
+    renderer.xr.setReferenceSpaceType(
+        "local-floor"
+    );
+
+
+    document.body.appendChild(
+        renderer.domElement
+    );
+
+
+    setupControllers();
+
+
+    buildParkour();
+
+
+    renderer.setAnimationLoop(
+        gameLoop
+    );
+
+}
+
+
+/* =====================================================
+   CONTROLLERS
+===================================================== */
+
+function setupControllers(){
+
+    for(let i=0;i<2;i++){
+
+        /*
+         * INPUT
+         */
+        const controller=
+            renderer.xr.getController(i);
+
+        controllers[i]=controller;
+
+        scene.add(controller);
+
+
+        /*
+         * PHYSICAL GRIP POSE
+         * THIS IS THE METHOD WE TESTED
+         * AND CONFIRMED WORKS.
+         */
+        const grip=
+            renderer.xr.getControllerGrip(i);
+
+        grips[i]=grip;
+
+        scene.add(grip);
+
+
+        /*
+         * VISIBLE HAND
+         */
+        const hand=
+            createHand(i);
+
+        hands[i]=hand;
+
+        grip.add(hand);
+
+
+        controller.addEventListener(
+            "connected",
+            event=>{
+
+                controller.userData.source=
+                    event.data;
+
+            }
+        );
+
+
+        controller.addEventListener(
+            "disconnected",
+            ()=>{
+
+                controller.userData.source=
+                    null;
+
+                handInitialized[i]=
+                    false;
+
+            }
+        );
+
+
+        controller.addEventListener(
+            "selectstart",
+            resetPlayer
+        );
+
+
+        controller.addEventListener(
+            "squeezestart",
+            resetPlayer
+        );
+
+    }
+
+}
+
+
+/* =====================================================
+   HAND COLLISION
+===================================================== */
+
+function handTouchesWorld(position){
+
+    const closest=
+        new THREE.Vector3();
+
+
+    for(const object of colliders){
+
+        const box=
+            new THREE.Box3()
+                .setFromObject(object);
+
+
+        box.clampPoint(
+            position,
+            closest
+        );
+
+
+        if(
+            closest.distanceTo(position)
+            <= HAND_RADIUS
+        ){
+
+            return true;
+
+        }
+
+    }
+
+
+    return false;
+}
+
+
+/* =====================================================
+   GTAG MOVEMENT
+===================================================== */
+
+function updateGTAGMovement(){
+
+    const totalPush=
+        new THREE.Vector3();
+
+    let pushCount=0;
+
+
+    for(let i=0;i<2;i++){
+
+        if(!grips[i])
+            continue;
+
+
+        grips[i].getWorldPosition(
+            handPositions[i]
+        );
+
+
+        if(!handInitialized[i]){
+
+            previousHands[i].copy(
+                handPositions[i]
+            );
+
+            handInitialized[i]=true;
+
+            continue;
+        }
+
+
+        handDelta[i]
+            .copy(handPositions[i])
+            .sub(previousHands[i]);
+
+
+        const distance=
+            handDelta[i].length();
+
+
+        const touching=
+            handTouchesWorld(
+                handPositions[i]
+            );
+
+
+        if(
+            touching &&
+            distance>.004 &&
+            distance<.45
+        ){
+
+            totalPush.add(
+                handDelta[i]
+                    .clone()
+                    .negate()
+            );
+
+            pushCount++;
+
+        }
+
+
+        previousHands[i].copy(
+            handPositions[i]
+        );
+
+    }
+
+
+    if(pushCount>0){
+
+        totalPush.multiplyScalar(
+            1/pushCount
+        );
+
+
+        totalPush.multiplyScalar(
+            PUSH_STRENGTH
+        );
+
+
+        velocity.add(
+            totalPush
+        );
+
+    }
+
+
+    if(
+        velocity.length()>MAX_SPEED
+    ){
+
+        velocity.setLength(
+            MAX_SPEED
+        );
+
+    }
+
+}
+
+
+/* =====================================================
+   PLAYER COLLISION
+===================================================== */
+
+function playerCollision(){
+
+    const worldPosition=
+        new THREE.Vector3();
+
+
+    player.getWorldPosition(
+        worldPosition
+    );
+
+
+    /*
+     * Keep player above the floor.
+     */
+
+    if(player.position.y<0){
+
+        player.position.y=0;
+
+        if(velocity.y<0)
+            velocity.y=0;
+
+    }
+
+
+    /*
+     * Basic wall/body collision.
+     */
+
+    for(const object of colliders){
+
+        const box=
+            new THREE.Box3()
+                .setFromObject(object);
+
+
+        box.expandByScalar(
+            PLAYER_RADIUS
+        );
+
+
+        if(
+            box.containsPoint(
+                worldPosition
+            )
+        ){
+
+            const center=
+                box.getCenter(
+                    new THREE.Vector3()
+                );
+
+
+            const difference=
+                worldPosition
+                    .clone()
+                    .sub(center);
+
+
+            if(
+                Math.abs(difference.x)>
+                Math.abs(difference.z)
+            ){
+
+                player.position.x+=
+                    difference.x>0
+                        ? .04
+                        : -.04;
+
+                velocity.x=0;
+
+            }else{
+
+                player.position.z+=
+                    difference.z>0
+                        ? .04
+                        : -.04;
+
+                velocity.z=0;
+
+            }
+
+        }
+
+    }
+
+}
+
+
+/* =====================================================
+   TURNING
+===================================================== */
+
+function updateTurning(delta){
+
+    if(!renderer.xr.isPresenting)
+        return;
+
+
+    for(const controller of controllers){
+
+        if(!controller)
+            continue;
+
+
+        const source=
+            controller.userData.source;
+
+
+        if(
+            !source ||
+            !source.gamepad
+        )
+            continue;
+
+
+        const axes=
+            source.gamepad.axes;
+
+
+        if(
+            !axes ||
+            axes.length<4
+        )
+            continue;
+
+
+        const x=axes[2];
+
+
+        if(Math.abs(x)>.25){
+
+            player.rotation.y-=
+                x*
+                delta*
+                1.7;
+
+        }
+
+    }
+
+}
+
+
+/* =====================================================
+   GRAVITY
+===================================================== */
+
+function gravity(delta){
+
+    velocity.y+=
+        GRAVITY*
+        delta;
+
+
+    if(velocity.y<-12)
+        velocity.y=-12;
+
+}
+
+
+/* =====================================================
+   ROBOTS
+===================================================== */
+
+function updateRobots(delta){
+
+    for(const robot of robots){
+
+        const target=
+            player.position.clone();
+
+
+        target.y=
+            robot.position.y;
+
+
+        const direction=
+            target.sub(
+                robot.position
+            );
+
+
+        const distance=
+            direction.length();
+
+
+        if(distance<.01)
+            continue;
+
+
+        direction.normalize();
+
+
+        let speed=2;
+
+
+        if(distance<8)
+            speed=3.5;
+
+
+        if(distance<4)
+            speed=4.5;
+
+
+        robot.position.add(
+            direction.multiplyScalar(
+                speed*delta
+            )
+        );
+
+
+        robot.lookAt(
+            player.position.x,
+            robot.position.y,
+            player.position.z
+        );
+
+
+        if(
+            robot.position.distanceTo(
+                player.position
+            )<1.3
+        ){
+
+            status.textContent=
+                "🤖 TAGGED! Press trigger to reset.";
+
+            velocity.set(0,0,0);
+
+        }
+
+    }
+
+}
+
+
+/* =====================================================
+   UPDATE
+===================================================== */
+
+function update(delta){
+
+    updateGTAGMovement();
+
+    updateTurning(delta);
+
+    gravity(delta);
+
+
+    player.position.addScaledVector(
+        velocity,
+        delta
+    );
+
+
+    velocity.x*=
+        Math.pow(.94,delta*60);
+
+    velocity.z*=
+        Math.pow(.94,delta*60);
+
+
+    playerCollision();
+
+
+    if(player.position.y<-8){
+
+        resetPlayer();
+
+    }
+
+
+    if(
+        mode==="parkour" &&
+        player.position.z<-23
+    ){
+
+        status.textContent=
+            "🏆 PARKOUR COMPLETE!";
+
+    }
+
+
+    if(mode==="tag"){
+
+        updateRobots(delta);
+
+    }
+
+}
+
+
+/* =====================================================
+   DEBUG
+===================================================== */
+
+function updateDebug(){
+
+    let text="";
+
+
+    for(let i=0;i<2;i++){
+
+        const p=
+            handPositions[i];
+
+
+        text+=
+            (i===0?"L":"R")+
+            ": "+
+            p.x.toFixed(1)+
+            " "+
+            p.y.toFixed(1)+
+            " "+
+            p.z.toFixed(1);
+
+
+        if(i===0)
+            text+="\n";
+
+    }
+
+
+    debug.innerHTML=text;
+
+}
+
+
+/* =====================================================
+   LOOP
+===================================================== */
+
+let lastTime=
+    performance.now();
+
+
+function gameLoop(){
+
+    const now=
+        performance.now();
+
+
+    let delta=
+        (now-lastTime)/1000;
+
+
+    lastTime=now;
+
+
+    delta=
+        Math.min(
+            delta,
+            .05
+        );
+
+
+    update(delta);
+
+    updateDebug();
+
+
+    renderer.render(
+        scene,
+        camera
+    );
+
+}
+
+
+/* =====================================================
+   RESET
+===================================================== */
+
+function resetPlayer(){
+
+    if(!player)
+        return;
+
+
+    /*
+     * Player root is at floor height.
+     * Camera is 1.6m above it.
+     */
+
+    player.position.set(
+        spawnPoint.x,
+        0,
+        spawnPoint.z
+    );
+
+
+    player.rotation.set(
+        0,
+        0,
+        0
+    );
+
+
+    camera.position.set(
+        0,
+        spawnPoint.y,
+        0
+    );
+
+
+    velocity.set(
+        0,
+        0,
+        0
+    );
+
+
+    for(let i=0;i<2;i++){
+
+        handInitialized[i]=false;
+
+    }
+
+}
+
+
+/* =====================================================
+   SWITCH MODE
+===================================================== */
+
+function switchMode(newMode){
+
+    mode=newMode;
+
+
+    if(mode==="parkour"){
+
+        buildParkour();
+
+    }else{
+
+        buildRobotTag();
+
+    }
+
+
+    resetPlayer();
+
+}
+
+
+/* =====================================================
+   START VR
+===================================================== */
+
+document.getElementById("startVR").onclick=
+async()=>{
+
+    try{
+
+        init();
+
+
+        if(!navigator.xr){
+
+            alert(
+                "WebXR is not available in this browser."
+            );
+
+            return;
+
+        }
+
+
+        const supported=
+            await navigator.xr
+                .isSessionSupported(
+                    "immersive-vr"
+                );
+
+
+        if(!supported){
+
+            alert(
+                "Immersive VR is not supported."
+            );
+
+            return;
+
+        }
+
+
+        const session=
+            await navigator.xr
+                .requestSession(
+                    "immersive-vr",
+                    {
+                        requiredFeatures:[
+                            "local-floor"
+                        ],
+
+                        optionalFeatures:[
+                            "bounded-floor"
+                        ]
+                    }
+                );
+
+
+        await renderer.xr.setSession(
+            session
+        );
+
+
+        menu.style.display="none";
+
+
+        status.textContent=
+            "🐒 VR ACTIVE — PUSH OFF THE WORLD!";
+
+
+        session.addEventListener(
+            "end",
+            ()=>{
+
+                menu.style.display=
+                    "flex";
+
+                status.textContent=
+                    "VR session ended.";
+
+            }
+        );
+
+    }
+    catch(error){
+
+        console.error(error);
+
+        alert(
+            "VR error:\n"+
+            error.message
+        );
+
+    }
+
+};
+
+
+/* =====================================================
+   PARKOUR BUTTON
+===================================================== */
+
+document.getElementById("parkourBtn").onclick=
+()=>{
+
+    console.log("PARKOUR BUTTON CLICKED");
+
+    init();
+
+    switchMode("parkour");
+
+    menu.style.display="none";
+
+};
+
+
+/* =====================================================
+   TAG BUTTON
+===================================================== */
+
+document.getElementById("tagBtn").onclick=
+()=>{
+
+    console.log("TAG BUTTON CLICKED");
+
+    init();
+
+    switchMode("tag");
+
+    menu.style.display="none";
+
+};
+
+
+/* =====================================================
+   RESIZE
+===================================================== */
+
+window.addEventListener(
+    "resize",
+    ()=>{
+
+        if(!camera || !renderer)
+            return;
+
+
+        camera.aspect=
+            window.innerWidth/
+            window.innerHeight;
+
+
+        camera.updateProjectionMatrix();
+
+
+        renderer.setSize(
+            window.innerWidth,
+            window.innerHeight
+        );
+
+    }
+);
+
+</script>
+
+</body>
+</html>
